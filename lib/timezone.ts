@@ -41,6 +41,11 @@ export function shiftCalendarDate(isoDate: string, days: number): string {
   return toCalendarDate(shifted, "UTC");
 }
 
+/** Anzahl Kalendertage von `fromDay` bis `toDay` (beide YYYY-MM-DD), z. B. für Countdown-Anzeigen. */
+export function calendarDayDiff(fromDay: string, toDay: string): number {
+  return Math.round((calendarDateToUTC(toDay).getTime() - calendarDateToUTC(fromDay).getTime()) / (24 * 60 * 60 * 1000));
+}
+
 export function formatWeekday(date: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("de-CH", { timeZone, weekday: "long" }).format(date);
 }
@@ -65,6 +70,17 @@ export function formatTime(date: Date, timeZone: string): string {
 /** Alle vom Laufzeitumfeld unterstützten IANA-Zeitzonen. */
 export function getAllTimezones(): string[] {
   return Intl.supportedValuesOf("timeZone");
+}
+
+/** Prüft, ob ein Wert eine gültige IANA-Zeitzone ist (z. B. für serverseitige Validierung). */
+export function isValidTimezone(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0) return false;
+  try {
+    new Intl.DateTimeFormat(undefined, { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Zerlegt z. B. "Europe/Zurich" in { city: "Zurich", region: "Europe" } (Unterstriche → Leerzeichen). */

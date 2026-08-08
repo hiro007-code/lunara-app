@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   activate,
+  completeOnboardingActivation,
   detectPlatform,
   getActivationState,
   getStoredActivation,
@@ -131,5 +132,82 @@ describe("Aktivierungs-Zustandslogik", () => {
     );
 
     expect(await sendActivation("55555555-5555-4555-8555-555555555555", "other")).toBe(false);
+  });
+});
+
+describe("completeOnboardingActivation (Aktivierung + Push-Erinnerungen, gemockte Notification-API)", () => {
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", createMockLocalStorage());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  function stubPushEnvironment(permission: NotificationPermission) {
+    const subscription = {
+      toJSON: () => ({ endpoint: "https://push.example/x", keys: { p256dh: "p", auth: "a" } }),
+      unsubscribe: vi.fn(async () => true),
+    };
+    const pushManager = {
+      subscribe: vi.fn(async () => subscription),
+      getSubscription: vi.fn(async () => subscription),
+    };
+    const registration = { pushManager };
+    vi.stubGlobal("window", { matchMedia: () => ({ matches: false }) });
+    vi.stubGlobal("PushManager", function PushManager() {});
+    vi.stubGlobal("Notification", { permission, requestPermission: vi.fn(async () => permission) });
+    vi.stubGlobal("navigator", {
+      serviceWorker: { ready: Promise.resolve(registration), getRegistration: vi.fn(async () => registration) },
+    });
+    vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", "AAAA");
+    return { pushManager };
+  }
+
+  it("granted: aktiviert UND sendet eine Push-Subscription", async () => {
+    vi.stubGlobal("crypto", { randomUUID: () => "aaaaaaaa-1111-4111-8111-111111111111" });
+    const { pushManager } = stubPushEnvironment("granted");
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await completeOnboardingActivation("android", "Europe/Zurich");
+
+    expect(getActivationState()).toBe("activated");
+    expect(pushManager.subscribe).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls.map((call) => call[0])).toEqual(["/api/activate", "/api/push/subscribe"]);
+  });
+
+  it("denied: Aktivierung schliesst trotzdem ab, keine Subscription", async () => {
+    vi.stubGlobal("crypto", { randomUUID: () => "bbbbbbbb-2222-4222-8222-222222222222" });
+    const { pushManager } = stubPushEnvironment("denied");
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await completeOnboardingActivation("android", "Europe/Zurich");
+
+    expect(getActivationState()).toBe("activated");
+    expect(pushManager.subscribe).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("/api/activate", expect.anything());
+  });
+
+  it("Push-API nicht vorhanden / iOS im Browser-Tab: kein Permission-Aufruf, kein Fehler, Aktivierung schliesst ab", async () => {
+    vi.stubGlobal("crypto", { randomUUID: () => "cccccccc-3333-4333-8333-333333333333" });
+    // iOS + nicht standalone -> shouldOfferPushPrompt liefert false; requestPermission darf
+    // dann gar nicht erst aufgerufen werden.
+    vi.stubGlobal("window", { matchMedia: () => ({ matches: false }) });
+    vi.stubGlobal("navigator", {});
+    const requestPermission = vi.fn(async () => "granted");
+    vi.stubGlobal("Notification", { permission: "default", requestPermission });
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await completeOnboardingActivation("ios", "Europe/Zurich");
+
+    expect(getActivationState()).toBe("activated");
+    expect(requestPermission).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("/api/activate", expect.anything());
   });
 });

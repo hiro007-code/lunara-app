@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Moon } from "@/components/Moon";
-import { activate, detectPlatform } from "@/lib/onboarding";
+import { useTimezone } from "@/components/TimezoneProvider";
+import { completeOnboardingActivation, detectPlatform } from "@/lib/onboarding";
+import { shouldOfferPushPrompt } from "@/lib/push";
 
 type OnboardingProps = {
   onActivated: () => void;
@@ -37,7 +39,9 @@ function MenuIcon() {
 
 /** Onboarding- & Aktivierungs-Screen (SPEC.md §2.5) – einmalig vor der eigentlichen App. */
 export function Onboarding({ onActivated }: OnboardingProps) {
+  const { timezone } = useTimezone();
   const platform = useMemo(() => detectPlatform(navigator.userAgent), []);
+  const offerPushPrompt = useMemo(() => shouldOfferPushPrompt(platform), [platform]);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [activating, setActivating] = useState(false);
 
@@ -59,8 +63,8 @@ export function Onboarding({ onActivated }: OnboardingProps) {
   async function handleActivate() {
     setActivating(true);
     // Schliesst immer lokal ab (siehe lib/onboarding.ts) – die Nutzerin wird nie blockiert,
-    // auch wenn der Server-Sync fehlschlägt.
-    await activate(platform);
+    // auch wenn Server-Sync oder Benachrichtigungs-Anfrage fehlschlagen/abgelehnt werden.
+    await completeOnboardingActivation(platform, timezone);
     onActivated();
   }
 
@@ -113,7 +117,13 @@ export function Onboarding({ onActivated }: OnboardingProps) {
         )}
       </div>
 
-      <div className="mt-10 flex w-full flex-col items-center gap-3">
+      <p className="mt-6 text-xs text-foreground-muted">
+        {offerPushPrompt
+          ? "Beim Aktivieren fragt dich dein Gerät, ob Lunara dich 7 und 3 Tage vor jedem Vollmond erinnern darf. Wenn du keine Benachrichtigungen möchtest, lehne einfach ab – die App funktioniert genauso."
+          : "Erinnerungen kannst du nach der Installation in der App unter Planung einschalten."}
+      </p>
+
+      <div className="mt-6 flex w-full flex-col items-center gap-3">
         <button
           type="button"
           onClick={handleActivate}

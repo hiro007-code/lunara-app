@@ -3,10 +3,11 @@
 Minimalistische Web-App für den nächsten Vollmond-Countdown und die
 Ferienplanung ohne Vollmond-Risiko. Die Mond-/Zeitzonen-Logik läuft
 vollständig client-seitig (`astronomy-engine`); die einzige
-Backend-Ausnahme sind zwei Serverless-Routen für einen anonymen
-Aktivierungszähler (siehe [Datenbank (Neon)](#datenbank-neon)). Keine
-Cookies, kein Tracking darüber hinaus, keine Analytics. Details siehe
-[SPEC.md](./SPEC.md).
+Backend-Ausnahme sind fünf Serverless-Routen für einen anonymen
+Aktivierungszähler und den Versand optionaler Vollmond-Erinnerungen
+(siehe [Datenbank (Neon)](#datenbank-neon) und
+[Push-Erinnerungen](#push-erinnerungen)). Keine Cookies, kein Tracking
+darüber hinaus, keine Analytics. Details siehe [SPEC.md](./SPEC.md).
 
 ## Screens
 
@@ -22,8 +23,8 @@ npm install
 npm run dev      # Dev-Server auf http://localhost:3000
 npm run build    # Produktions-Build
 npm run start    # Produktions-Build lokal servieren
-npm test         # Vitest (lib/moon.ts, lib/timezone.ts, lib/activation.ts, lib/onboarding.ts)
-npm run db:setup # Legt die Tabelle für den Aktivierungszähler an (idempotent)
+npm test         # Vitest (lib/moon.ts, lib/timezone.ts, lib/activation.ts, lib/onboarding.ts, lib/push.ts, lib/reminder.ts)
+npm run db:setup # Legt/aktualisiert die Tabellen an (idempotent)
 ```
 
 Voraussetzung: Node.js 20+.
@@ -43,11 +44,12 @@ importieren – Next.js wird automatisch erkannt.
 
 ## Datenbank (Neon)
 
-Zwei Serverless-Routen (`/api/activate`, `/api/stats`) zählen anonyme
-App-Aktivierungen in einer Neon-Postgres-Datenbank (Vercel Marketplace,
-`@neondatabase/serverless`). Gespeichert werden nur eine zufällige UUID,
-Zeitstempel und eine grobe Plattform (`ios`/`android`/`other`) – keine
-Personendaten, keine IP-Adressen.
+Fünf Serverless-Routen (`/api/activate`, `/api/stats`, `/api/push/subscribe`,
+`/api/push/unsubscribe`, `/api/cron/notify`) zählen anonyme App-Aktivierungen
+und verwalten Push-Subscriptions in einer Neon-Postgres-Datenbank (Vercel
+Marketplace, `@neondatabase/serverless`). Für die Aktivierung werden nur eine
+zufällige UUID, Zeitstempel und eine grobe Plattform (`ios`/`android`/`other`)
+gespeichert – keine Personendaten, keine IP-Adressen.
 
 **Setup** (einmalig, für lokale Entwicklung):
 
@@ -72,6 +74,47 @@ Aktivierung schnell zu verifizieren:
 ```bash
 curl https://<deployment-url>/api/stats
 ```
+
+## Push-Erinnerungen
+
+Beim Aktivieren fragt die App (ausser im iOS-Browser-Tab, dort erst nach der
+Installation über die Erinnerungs-Sektion in der Planung-View) nach der
+Benachrichtigungs-Berechtigung für Vollmond-Erinnerungen. Ein täglicher
+Vercel-Cron-Job verschickt darauf 7 und 3 Tage vor jedem Vollmond eine
+Push-Nachricht (`web-push`-Standard, VAPID-Schlüsselpaar).
+
+**Setup** (einmalig, lokal bereits erledigt – siehe `.env.local`):
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+Benötigte Umgebungsvariablen:
+
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY` – öffentlich, wird an den Browser ausgeliefert
+- `VAPID_PUBLIC_KEY` – derselbe Schlüssel, serverseitig ohne `NEXT_PUBLIC_`-Prefix
+  für den `web-push`-Versand im Cron-Job
+- `VAPID_PRIVATE_KEY` – geheim, signiert die Push-Nachrichten
+- `VAPID_SUBJECT` – Kontaktadresse lt. VAPID-Spezifikation, z. B.
+  `mailto:name@example.com`
+- `CRON_SECRET` – zufälliges Secret; schützt `/api/cron/notify` vor fremden
+  Aufrufen (Vercel setzt bei gesetzter Env-Var automatisch den passenden
+  `Authorization: Bearer`-Header, wenn der Cron-Job ausgelöst wird)
+
+Für Vercel-Deployments alle fünf Variablen zusätzlich im Projekt-Dashboard
+unter **Settings → Environment Variables** eintragen (werden nicht
+automatisch aus `.env.local` übernommen). Der Zeitplan steht in
+`vercel.json` (täglich `0 9 * * *`); die Tabellen inkl. `last_notified_at`
+legt `npm run db:setup` an.
+
+**Manuell testen:**
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://<deployment-url>/api/cron/notify
+```
+
+Liefert `{ ok: true, sent, skipped, removed }`. Ohne (oder mit falschem)
+Header antwortet die Route mit `401`.
 
 ## PWA
 

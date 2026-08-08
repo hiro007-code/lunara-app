@@ -63,3 +63,33 @@ self.addEventListener("fetch", (event) => {
     }),
   );
 });
+
+// Vollmond-Erinnerungen (SPEC.md §2.5): zeigt eine ankommende Push-Nachricht an.
+// Bewusst einfach – kein Rich-Content, keine Actions.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = {};
+  }
+
+  const title = data.title || "Lunara";
+  const options = {
+    body: data.body || "Bald ist Vollmond.",
+    icon: "/icon-192",
+    badge: "/icon-192",
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window" }).then((clientList) => {
+      if (clientList.length > 0) return clientList[0].focus();
+      return self.clients.openWindow("/");
+    }),
+  );
+});

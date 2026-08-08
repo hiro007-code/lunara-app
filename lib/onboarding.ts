@@ -1,4 +1,5 @@
 import { PLATFORMS, type Platform } from "./activation";
+import { enablePushReminders, shouldOfferPushPrompt } from "./push";
 
 // Aktivierungs-Zustandslogik + Plattform-Erkennung fürs Onboarding (SPEC.md §2.5).
 // Die Nutzerin wird nie blockiert: Aktivierung schliesst immer sofort lokal ab,
@@ -103,6 +104,26 @@ export async function activate(platform: Platform): Promise<void> {
   const uuid = crypto.randomUUID();
   const synced = await sendActivation(uuid, platform);
   writeActivationRecord({ uuid, platform, synced });
+}
+
+/**
+ * Block 3 vollständig: Aktivierung (siehe activate()), danach – ausser im iOS-Browser-Tab –
+ * die Benachrichtigungs-Berechtigung anfragen. Eine Ablehnung ist ein gültiger Ausgang und
+ * wird nicht als Fehler behandelt; der Übergang zur App hängt nie an dieser Abfrage.
+ */
+export async function completeOnboardingActivation(platform: Platform, timezone: string): Promise<void> {
+  await activate(platform);
+
+  if (!shouldOfferPushPrompt(platform)) return;
+
+  const stored = getStoredActivation();
+  if (!stored) return;
+
+  try {
+    await enablePushReminders(stored.uuid, timezone);
+  } catch {
+    // enablePushReminders wirft bereits nie – zusätzliche Absicherung, falls sich das je ändert.
+  }
 }
 
 /** Holt einen fehlgeschlagenen Server-Sync nach, falls einer aussteht (Retry-Fall). */

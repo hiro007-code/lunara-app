@@ -42,8 +42,10 @@ export default function RootLayout({
     <html lang="de" className={inter.variable}>
       <body className="bg-background font-sans text-foreground antialiased">
         <ServiceWorkerRegistration />
-        <OnboardingGate>
-          <TimezoneProvider>
+        {/* TimezoneProvider umschliesst auch das Onboarding: Block 3 braucht die
+            aktive Zeitzone bereits für die Push-Subscription (SPEC.md §2.5). */}
+        <TimezoneProvider>
+          <OnboardingGate>
             <div className="mx-auto flex min-h-screen w-full max-w-md flex-col">
               <div className="flex justify-end px-6 pt-6">
                 <TimezoneLabel />
@@ -51,8 +53,8 @@ export default function RootLayout({
               <main className="flex flex-1 flex-col px-6 pb-16">{children}</main>
               <BottomBar />
             </div>
-          </TimezoneProvider>
-        </OnboardingGate>
+          </OnboardingGate>
+        </TimezoneProvider>
       </body>
     </html>
   );

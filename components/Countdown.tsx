@@ -1,6 +1,5 @@
-import { calendarDateToUTC, toCalendarDate } from "@/lib/timezone";
+import { calendarDayDiff, toCalendarDate } from "@/lib/timezone";
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const MS_PER_HOUR = 60 * 60 * 1000;
 const HOURS_THRESHOLD = 48;
 
@@ -10,10 +9,6 @@ type CountdownProps = {
   previousFullMoon: Date;
   timeZone: string;
 };
-
-function calendarDayDiff(fromDay: string, toDay: string): number {
-  return Math.round((calendarDateToUTC(toDay).getTime() - calendarDateToUTC(fromDay).getTime()) / MS_PER_DAY);
-}
 
 function pluralize(count: number, singular: string, plural: string): string {
   return count === 1 ? singular : plural;
