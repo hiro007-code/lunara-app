@@ -1,8 +1,12 @@
 import { addDays, subDays } from "date-fns";
 
-// Zeitzonen-Helpers – Favoriten-Verwaltung (localStorage) folgt in Etappe 5 (SPEC.md §2.3).
+// Zeitzonen-Helpers, Zonenliste und Favoriten-Verwaltung (SPEC.md §2.3).
 
 export const DEFAULT_TIMEZONE = "Europe/Zurich";
+export const MAX_FAVORITES = 4;
+
+const ACTIVE_TIMEZONE_STORAGE_KEY = "lunara:active-timezone";
+const FAVORITE_TIMEZONES_STORAGE_KEY = "lunara:favorite-timezones";
 
 /**
  * Ordnet einen UTC-Zeitpunkt dem Kalendertag (YYYY-MM-DD) in der angegebenen
@@ -56,4 +60,76 @@ export function formatShortDate(date: Date, timeZone: string): string {
 
 export function formatTime(date: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("de-CH", { timeZone, hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+/** Alle vom Laufzeitumfeld unterstützten IANA-Zeitzonen. */
+export function getAllTimezones(): string[] {
+  return Intl.supportedValuesOf("timeZone");
+}
+
+/** Zerlegt z. B. "Europe/Zurich" in { city: "Zurich", region: "Europe" } (Unterstriche → Leerzeichen). */
+export function getTimezoneLabel(timezone: string): { city: string; region: string } {
+  const parts = timezone.split("/");
+  const city = parts[parts.length - 1].replace(/_/g, " ");
+  const region = parts.slice(0, -1).join("/").replace(/_/g, " ");
+  return { city, region };
+}
+
+function isLocalStorageAvailable(): boolean {
+  return typeof localStorage !== "undefined";
+}
+
+/** Fügt eine Zeitzone zu den Favoriten hinzu (keine Duplikate, max. `MAX_FAVORITES`). Reine Funktion, keine Persistenz. */
+export function addFavoriteTimezone(favorites: string[], timezone: string): string[] {
+  if (favorites.includes(timezone) || favorites.length >= MAX_FAVORITES) {
+    return favorites;
+  }
+  return [...favorites, timezone];
+}
+
+/** Entfernt eine Zeitzone aus den Favoriten. Reine Funktion, keine Persistenz. */
+export function removeFavoriteTimezone(favorites: string[], timezone: string): string[] {
+  return favorites.filter((favorite) => favorite !== timezone);
+}
+
+/** Aktive Zeitzone aus localStorage – SSR-sicher (liefert den Default ausserhalb des Browsers). */
+export function loadActiveTimezone(): string {
+  if (!isLocalStorageAvailable()) return DEFAULT_TIMEZONE;
+  try {
+    return localStorage.getItem(ACTIVE_TIMEZONE_STORAGE_KEY) ?? DEFAULT_TIMEZONE;
+  } catch {
+    return DEFAULT_TIMEZONE;
+  }
+}
+
+export function saveActiveTimezone(timezone: string): void {
+  if (!isLocalStorageAvailable()) return;
+  try {
+    localStorage.setItem(ACTIVE_TIMEZONE_STORAGE_KEY, timezone);
+  } catch {
+    // localStorage kann z. B. im privaten Modus nicht verfügbar sein – Auswahl bleibt dann nur für die Sitzung aktiv.
+  }
+}
+
+/** Favoriten-Zeitzonen aus localStorage – SSR-sicher (liefert eine leere Liste ausserhalb des Browsers). */
+export function loadFavoriteTimezones(): string[] {
+  if (!isLocalStorageAvailable()) return [];
+  try {
+    const raw = localStorage.getItem(FAVORITE_TIMEZONES_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is string => typeof item === "string").slice(0, MAX_FAVORITES);
+  } catch {
+    return [];
+  }
+}
+
+export function saveFavoriteTimezones(favorites: string[]): void {
+  if (!isLocalStorageAvailable()) return;
+  try {
+    localStorage.setItem(FAVORITE_TIMEZONES_STORAGE_KEY, JSON.stringify(favorites));
+  } catch {
+    // localStorage kann z. B. im privaten Modus nicht verfügbar sein – Favoriten bleiben dann nur für die Sitzung aktiv.
+  }
 }
