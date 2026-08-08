@@ -1,19 +1,49 @@
+import { calendarDateToUTC, toCalendarDate } from "@/lib/timezone";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const MS_PER_HOUR = 60 * 60 * 1000;
+const HOURS_THRESHOLD = 48;
+
 type CountdownProps = {
-  daysUntilFullMoon?: number;
-  daysSinceLastFullMoon?: number;
+  now: Date;
+  nextFullMoon: Date;
+  previousFullMoon: Date;
+  timeZone: string;
 };
 
-// Countdown-Texte – echte Berechnung folgt in Etappe 3 (SPEC.md §2.1).
-export function Countdown({ daysUntilFullMoon, daysSinceLastFullMoon }: CountdownProps) {
+function calendarDayDiff(fromDay: string, toDay: string): number {
+  return Math.round((calendarDateToUTC(toDay).getTime() - calendarDateToUTC(fromDay).getTime()) / MS_PER_DAY);
+}
+
+function pluralize(count: number, singular: string, plural: string): string {
+  return count === 1 ? singular : plural;
+}
+
+/** Countdown-Texte (SPEC.md §2.1). Tages-Differenzen als Kalendertag-Differenz in der aktiven Zeitzone. */
+export function Countdown({ now, nextFullMoon, previousFullMoon, timeZone }: CountdownProps) {
+  const today = toCalendarDate(now, timeZone);
+  const nextDay = toCalendarDate(nextFullMoon, timeZone);
+  const previousDay = toCalendarDate(previousFullMoon, timeZone);
+
+  const hoursUntilNext = (nextFullMoon.getTime() - now.getTime()) / MS_PER_HOUR;
+  const daysSincePrevious = calendarDayDiff(previousDay, today);
+
+  let primaryText: string;
+  if (nextDay === today) {
+    primaryText = "Heute Nacht ist Vollmond";
+  } else if (hoursUntilNext < HOURS_THRESHOLD) {
+    const hours = Math.max(1, Math.round(hoursUntilNext));
+    primaryText = `Vollmond in ${hours} ${pluralize(hours, "Stunde", "Stunden")}`;
+  } else {
+    const days = calendarDayDiff(today, nextDay);
+    primaryText = `Vollmond in ${days} ${pluralize(days, "Tag", "Tagen")}`;
+  }
+
   return (
-    <div className="flex flex-col items-center gap-2 text-center">
-      <p className="text-4xl font-semibold text-foreground">
-        {daysUntilFullMoon !== undefined ? `Vollmond in ${daysUntilFullMoon} Tagen` : "Vollmond in – Tagen"}
-      </p>
+    <div className="flex flex-col items-center gap-3 text-center">
+      <p className="text-balance text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">{primaryText}</p>
       <p className="text-sm text-foreground-muted">
-        {daysSinceLastFullMoon !== undefined
-          ? `Letzter Vollmond vor ${daysSinceLastFullMoon} Tagen`
-          : "Letzter Vollmond vor – Tagen"}
+        Letzter Vollmond vor {daysSincePrevious} {pluralize(daysSincePrevious, "Tag", "Tagen")}
       </p>
     </div>
   );
