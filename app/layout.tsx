@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { BottomBar } from "@/components/BottomBar";
+import { OnboardingGate } from "@/components/OnboardingGate";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { TimezoneLabel } from "@/components/TimezoneLabel";
 import { TimezoneProvider } from "@/components/TimezoneProvider";
@@ -41,15 +42,17 @@ export default function RootLayout({
     <html lang="de" className={inter.variable}>
       <body className="bg-background font-sans text-foreground antialiased">
         <ServiceWorkerRegistration />
-        <TimezoneProvider>
-          <div className="mx-auto flex min-h-screen w-full max-w-md flex-col">
-            <div className="flex justify-end px-6 pt-6">
-              <TimezoneLabel />
+        <OnboardingGate>
+          <TimezoneProvider>
+            <div className="mx-auto flex min-h-screen w-full max-w-md flex-col">
+              <div className="flex justify-end px-6 pt-6">
+                <TimezoneLabel />
+              </div>
+              <main className="flex flex-1 flex-col px-6 pb-16">{children}</main>
+              <BottomBar />
             </div>
-            <main className="flex flex-1 flex-col px-6 pb-16">{children}</main>
-            <BottomBar />
-          </div>
-        </TimezoneProvider>
+          </TimezoneProvider>
+        </OnboardingGate>
       </body>
     </html>
   );

@@ -31,6 +31,12 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // /api/* nie cachen (z. B. /api/stats) – immer live vom Server, nie veraltet
+  // oder versehentlich offline aus dem Cache beantwortet.
+  if (new URL(request.url).pathname.startsWith("/api/")) {
+    return;
+  }
+
   // Next.js hängt beim Link-Prefetching einen zufälligen "_rsc"-Query-Parameter an
   // (bei jedem Prefetch neu) – für den Cache-Key ignorieren, sonst legt jeder
   // Prefetch einen neuen, nie wiederverwendbaren Eintrag an.

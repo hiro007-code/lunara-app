@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AboutSheet } from "@/components/AboutSheet";
 import { DateCheck } from "@/components/DateCheck";
 import { FullMoonList } from "@/components/FullMoonList";
 import { useTimezone } from "@/components/TimezoneProvider";
@@ -11,6 +12,7 @@ export default function PlanungPage() {
   // Wie im Countdown-Screen: Berechnung erst nach dem Mount, damit kein zur
   // Build-Zeit eingefrorener Zeitpunkt als veraltete Jahresübersicht aufblitzt.
   const [now, setNow] = useState<Date | null>(null);
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   useEffect(() => {
     setNow(new Date());
@@ -31,6 +33,18 @@ export default function PlanungPage() {
           </div>
         )}
       </section>
+
+      <div className="flex flex-1 items-end justify-center pt-6">
+        <button
+          type="button"
+          onClick={() => setAboutOpen(true)}
+          className="focus-ring text-xs text-foreground-muted underline decoration-white/20 underline-offset-4"
+        >
+          Über diese App
+        </button>
+      </div>
+
+      {aboutOpen && <AboutSheet onClose={() => setAboutOpen(false)} />}
     </div>
   );
 }

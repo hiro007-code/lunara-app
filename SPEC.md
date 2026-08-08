@@ -55,6 +55,17 @@ Eine minimalistische Web-App für eine Familie mit Zwillingen (3 J.), die auf Vo
 - Dezente Mond-Textur (SVG-Filter/Noise)
 - Teilen-Funktion für Check-Ergebnis
 
+### 2.5 Onboarding & Aktivierung
+
+- Einmaliger Onboarding-Screen vor der eigentlichen App, solange in `localStorage` keine Aktivierung vorliegt; danach nie wieder (direkter Sprung in die App)
+- Gestaltung exakt in der bestehenden Designsprache (§5): Nachthimmel, Mond-SVG klein als Logo, ruhige Typografie
+- **Block 1 – Worum geht's:** 2–3 Sätze auf Deutsch, was die App tut und für wen (Familien, deren Kinder sensibel auf Vollmond reagieren; Ferien/Termine mondfrei planen)
+- **Block 2 – Installation:** Plattform-Erkennung via User-Agent. Android/Chrome: Menüweg beschrieben, zusätzlich `beforeinstallprompt` abfangen und bei Verfügbarkeit einen echten "App installieren"-Button (nativer Dialog) zeigen. iOS: Teilen-Symbol → Zum Home-Bildschirm hinzufügen (geht in Safari und Chrome). Desktop/unbekannt: neutrale Kurzfassung beider Wege. Symbole als Inline-SVG, keine Screenshots
+- **Block 3 – Aktivieren:** grosser, primärer Button. Erzeugt eine zufällige UUID, bestimmt die Plattform grob (`ios`/`android`/`other`), sendet beides an `/api/activate`, speichert UUID + Aktivierungs-Flag lokal, blendet weich zur App über
+- Fehlerfall (offline/API down): Aktivierung schliesst trotzdem lokal ab, die Nutzerin wird nie blockiert; Nachsenden einmalig beim nächsten App-Start mit Netz (Retry-Flag in `localStorage`)
+- Datenschutz-Einzeiler unter dem Button: anonyme Zufalls-ID, keine Personendaten
+- Dezenter "Über diese App"-Link unten in der Planung-View öffnet jederzeit erneut ein ruhiges Sheet (Stil wie Zeitzonen-Picker) mit dem "Worum geht's"-Text und dem Datenschutz-Hinweis
+
 ---
 
 ## 3. Fachliche Logik: Mondberechnung
@@ -82,7 +93,7 @@ Eine minimalistische Web-App für eine Familie mit Zwillingen (3 J.), die auf Vo
 | Mondberechnung | `astronomy-engine` |
 | Zeitzonen | `Intl.DateTimeFormat` (+ ggf. `date-fns` / `date-fns-tz`) |
 | State/Persistenz | React State + Context (aktive Zeitzone) + `localStorage` (Zeitzonen-Favoriten) |
-| Backend/DB | **keins** – bewusst |
+| Backend/DB | Grundsätzlich **keins**; Backend-Ausnahme: zwei Serverless-Routen (`/api/activate`, `/api/stats`) mit Neon Postgres (Vercel Marketplace, `@neondatabase/serverless`). Zweck: anonymer Aktivierungszähler |
 | PWA | Manifest (`app/manifest.ts`) + generierte Icons (`next/og`, konsistent mit `Moon.tsx`), damit Homescreen-Installation möglich; offline-fähig via handgeschriebenem Service Worker (`public/sw.js`) |
 | Tests | `vitest` (einzige Ausnahme zu "keine zusätzlichen Libraries", da im Projekt kein Test-Runner vorhanden war; nur als `devDependency`, kein Einfluss auf den Produktions-Build) |
 
@@ -119,7 +130,7 @@ Beruhigend, dunkel, völlig minimalistisch. Die App soll sich anfühlen wie ein 
 ### 5.5 Explizite Nicht-Ziele (Design)
 
 - Keine Fotos/Bilder, keine Illustrations-Assets
-- Keine Onboarding-Screens, keine Popups
+- Kein mehrschrittiges Onboarding (Tutorials, Tours), keine Popups – Ausnahme: der einmalige Aktivierungs-/Install-Screen aus §2.5
 - Keine Farbverläufe-Orgien, keine Glassmorphism-Effekte
 
 ---
@@ -150,7 +161,7 @@ Beruhigend, dunkel, völlig minimalistisch. Die App soll sich anfühlen wie ein 
 - Sprache der UI: **Deutsch** (Schweiz-tauglich, aber ß-frei ist ohnehin Standard hier: "gross" statt "groß" nicht nötig in UI-Texten – neutrale Formulierungen bevorzugen)
 - Ladezeit: instant, kein Spinner nötig (alles client-side berechenbar)
 - Funktioniert offline nach erstem Laden (PWA)
-- Keine Cookies, kein Tracking, keine Analytics
+- Keine Cookies, kein Tracking ausser einem anonymen Aktivierungszähler (zufällige UUID, Zeitstempel, grobe Plattform ios/android/other – keine Personendaten, keine IP-Speicherung, keine weiteren Pings), keine Analytics
 - Tests für `lib/moon.ts`: mindestens die Randfälle (Vollmond nahe Mitternacht, Zeitzonen-Datumskippen, Zeitraum-Ampel-Logik)
 
 ---
@@ -163,6 +174,7 @@ Beruhigend, dunkel, völlig minimalistisch. Die App soll sich anfühlen wie ein 
 4. **View Planung:** Jahresübersicht + Datums-Check (§2.2)
 5. **Zeitzonen:** Picker + Favoriten (§2.3)
 6. **Feinschliff:** PWA, Randfälle, Design-Polish
+7. **Onboarding & Aktivierung:** Onboarding-Screen, Install-Anleitung, anonymer Aktivierungszähler via Neon Postgres (§2.5, §4, §7)
 
 > Pro Prompt genau **eine** Etappe umsetzen. Immer auf dieses Dokument verweisen.
 
@@ -174,3 +186,4 @@ Beruhigend, dunkel, völlig minimalistisch. Die App soll sich anfühlen wie ein 
 |---|---|
 | 2026-08-07 | Initiale Version |
 | 2026-08-08 | Etappen 1–6 umgesetzt: Setup, Mond-Logik (`lib/moon.ts`, `lib/timezone.ts`), View Mond, View Planung, Zeitzonen-Picker mit Favoriten, PWA (Manifest, generierte Icons, Service Worker) und Feinschliff (Fokus-Zustände, `prefers-reduced-motion`). `vitest` als Test-Runner (§4) und `--danger` als Ampel-Rot (§5.2) ergänzt. |
+| 2026-08-08 | Etappe 7: Onboarding-Screen mit Install-Anleitung und anonymem Aktivierungszähler (§2.5). Backend-Ausnahme (§4): `/api/activate`, `/api/stats` mit Neon Postgres (Vercel Marketplace, `@neondatabase/serverless`). Tracking-Hinweis in §7 präzisiert. |

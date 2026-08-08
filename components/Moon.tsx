@@ -10,6 +10,7 @@ type MoonProps = {
 const SIZE = 200;
 const CENTER = SIZE / 2;
 const RADIUS = 84;
+const DEFAULT_SIZE_CLASSES = "w-60 sm:w-72";
 
 /**
  * SVG-Mond mit Phasen-Rendering (SPEC.md §2.1). Die beleuchtete Fläche wird aus
@@ -26,7 +27,7 @@ export function Moon({ fraction, waxing, className }: MoonProps) {
   return (
     <svg
       viewBox={`0 0 ${SIZE} ${SIZE}`}
-      className={`h-auto w-60 sm:w-72 ${className ?? ""}`}
+      className={`h-auto ${className ?? DEFAULT_SIZE_CLASSES}`}
       role="img"
       aria-label={`Mond, ${Math.round(fraction * 100)} Prozent beleuchtet, ${waxing ? "zunehmend" : "abnehmend"}`}
     >
