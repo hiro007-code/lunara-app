@@ -6,6 +6,8 @@
   --foreground-muted: #9aa0ab;
   --amber: #c99b5e;
   --green: #7fa98e;
+  /* Gedämpftes Warm-Rot für die "rote" Ampel – bewusst kein grelles Rot (§5.2). */
+  --danger: #c2705a;
 }
 
 @theme inline {
@@ -14,6 +16,7 @@
   --color-foreground-muted: var(--foreground-muted);
   --color-amber: var(--amber);
   --color-green: var(--green);
+  --color-danger: var(--danger);
   --font-sans: var(--font-inter);
 }
 
