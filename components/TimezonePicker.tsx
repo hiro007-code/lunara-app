@@ -9,6 +9,7 @@ type TimezonePickerProps = {
 };
 
 const ALL_TIMEZONES = getAllTimezones();
+const FOCUSABLE_SELECTOR = 'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 function StarIcon({ filled }: { filled: boolean }) {
   return (
@@ -53,7 +54,7 @@ function TimezoneRow({ timezone, active, favorite, favoriteDisabled, onSelect, o
       <button
         type="button"
         onClick={onSelect}
-        className={`flex-1 text-left text-sm ${active ? "text-foreground" : "text-foreground-muted"}`}
+        className={`focus-ring flex-1 text-left text-sm ${active ? "text-foreground" : "text-foreground-muted"}`}
       >
         {city}
         {region && <span className="text-foreground-muted"> – {region}</span>}
@@ -64,7 +65,7 @@ function TimezoneRow({ timezone, active, favorite, favoriteDisabled, onSelect, o
         disabled={favoriteDisabled}
         aria-label={favorite ? "Favorit entfernen" : "Als Favorit markieren"}
         aria-pressed={favorite}
-        className={favoriteDisabled ? "cursor-not-allowed opacity-30" : ""}
+        className={`focus-ring ${favoriteDisabled ? "cursor-not-allowed opacity-30" : ""}`}
       >
         <StarIcon filled={favorite} />
       </button>
@@ -72,20 +73,52 @@ function TimezoneRow({ timezone, active, favorite, favoriteDisabled, onSelect, o
   );
 }
 
-/** Zeitzonen-Sheet (SPEC.md §2.3): Suche + Favoriten, schliesst per X, Hintergrund-Tap oder Escape. */
+/**
+ * Zeitzonen-Sheet (SPEC.md §2.3): Suche + Favoriten, schliesst per X, Hintergrund-Tap
+ * oder Escape. Fokus-Falle hält Tab-Navigation im Dialog, Fokus kehrt beim Schliessen
+ * zum auslösenden Element zurück (§7).
+ */
 export function TimezonePicker({ onClose }: TimezonePickerProps) {
   const { timezone, setTimezone, favorites, toggleFavorite } = useTimezone();
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Muss vor dem fokus-verschiebenden Effekt erfasst werden (lazy useState-Initializer
+  // läuft während des ersten Renders, also bevor der Effekt den Fokus ins Suchfeld holt).
+  const [previouslyFocused] = useState<HTMLElement | null>(() => document.activeElement as HTMLElement | null);
 
   useEffect(() => {
     inputRef.current?.focus();
-  }, []);
+    return () => {
+      previouslyFocused?.focus?.();
+    };
+  }, [previouslyFocused]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialogRef.current) return;
+
+      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
+
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [onClose]);
@@ -107,11 +140,9 @@ export function TimezonePicker({ onClose }: TimezonePickerProps) {
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={onClose}>
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Zeitzone wählen"
@@ -120,7 +151,7 @@ export function TimezonePicker({ onClose }: TimezonePickerProps) {
       >
         <div className="flex items-center justify-between pb-3">
           <h2 className="text-sm text-foreground-muted">Zeitzone</h2>
-          <button type="button" onClick={onClose} aria-label="Schliessen" className="text-foreground-muted">
+          <button type="button" onClick={onClose} aria-label="Schliessen" className="focus-ring text-foreground-muted">
             <CloseIcon />
           </button>
         </div>
@@ -131,7 +162,7 @@ export function TimezonePicker({ onClose }: TimezonePickerProps) {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Stadt oder Region suchen"
-          className="rounded-md border border-white/10 bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted"
+          className="focus-ring rounded-md border border-white/10 bg-transparent px-3 py-2 text-sm text-foreground placeholder:text-foreground-muted"
         />
 
         <div className="mt-3 flex-1 overflow-y-auto">

@@ -53,3 +53,18 @@ body {
 .animate-fade-in {
   animation: fade-in 700ms ease-out;
 }
+
+/* prefers-reduced-motion: Fade-in deaktivieren, Inhalt bleibt sofort sichtbar (§7). */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+/* Dezenter, aber sichtbarer Fokus-Zustand für alle interaktiven Elemente (§7). */
+.focus-ring:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--foreground) 50%, transparent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

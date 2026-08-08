@@ -13,7 +13,7 @@ export function TimezoneLabel() {
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="text-sm text-foreground-muted">
+      <button type="button" onClick={() => setOpen(true)} className="focus-ring text-sm text-foreground-muted">
         {city}
       </button>
       {open && <TimezonePicker onClose={() => setOpen(false)} />}

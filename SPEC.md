@@ -81,9 +81,10 @@ Eine minimalistische Web-App für eine Familie mit Zwillingen (3 J.), die auf Vo
 | Styling | Tailwind CSS |
 | Mondberechnung | `astronomy-engine` |
 | Zeitzonen | `Intl.DateTimeFormat` (+ ggf. `date-fns` / `date-fns-tz`) |
-| State/Persistenz | React State + `localStorage` (Zeitzonen-Favoriten) |
+| State/Persistenz | React State + Context (aktive Zeitzone) + `localStorage` (Zeitzonen-Favoriten) |
 | Backend/DB | **keins** – bewusst |
-| PWA | Manifest + Icons, damit Homescreen-Installation möglich; offline-fähig |
+| PWA | Manifest (`app/manifest.ts`) + generierte Icons (`next/og`, konsistent mit `Moon.tsx`), damit Homescreen-Installation möglich; offline-fähig via handgeschriebenem Service Worker (`public/sw.js`) |
+| Tests | `vitest` (einzige Ausnahme zu "keine zusätzlichen Libraries", da im Projekt kein Test-Runner vorhanden war; nur als `devDependency`, kein Einfluss auf den Produktions-Build) |
 
 ---
 
@@ -98,8 +99,9 @@ Beruhigend, dunkel, völlig minimalistisch. Die App soll sich anfühlen wie ein 
 - Hintergrund: sehr dunkles Blau-Schwarz (Nachthimmel, **nicht** reines Schwarz), z. B. `#0A0E1A`-Richtung
 - Mond & Primärtext: warmes Off-White
 - Sekundärtext: gedämpftes Silber/Grau
-- Gefahrenzone & Warnungen: sanftes Amber – **kein grelles Rot** (auch die "rote" Ampel eher als gedämpftes Warm-Rot/Amber)
-- Grün der Ampel: gedämpftes, ruhiges Grün
+- Gefahrenzone & Warnungen: sanftes Amber (`--amber: #c99b5e`) – **kein grelles Rot**
+- Grün der Ampel: gedämpftes, ruhiges Grün (`--green: #7fa98e`)
+- "Rote" Ampel: eigener gedämpfter Warm-Rot-Ton `--danger: #c2705a` (unterscheidbar von Amber, aber bewusst kein grelles Rot)
 
 ### 5.3 Typografie & Layout
 
@@ -171,3 +173,4 @@ Beruhigend, dunkel, völlig minimalistisch. Die App soll sich anfühlen wie ein 
 | Datum | Änderung |
 |---|---|
 | 2026-08-07 | Initiale Version |
+| 2026-08-08 | Etappen 1–6 umgesetzt: Setup, Mond-Logik (`lib/moon.ts`, `lib/timezone.ts`), View Mond, View Planung, Zeitzonen-Picker mit Favoriten, PWA (Manifest, generierte Icons, Service Worker) und Feinschliff (Fokus-Zustände, `prefers-reduced-motion`). `vitest` als Test-Runner (§4) und `--danger` als Ampel-Rot (§5.2) ergänzt. |

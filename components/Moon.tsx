@@ -1,4 +1,5 @@
 import { useId } from "react";
+import { getMoonPhasePath } from "@/lib/moonPhaseSvg";
 
 type MoonProps = {
   fraction: number;
@@ -20,17 +21,7 @@ export function Moon({ fraction, waxing, className }: MoonProps) {
   const rawId = useId().replace(/[^a-zA-Z0-9]/g, "");
   const glowId = `moon-glow-${rawId}`;
 
-  const isGibbous = fraction > 0.5;
-  const terminatorRadiusX = RADIUS * Math.abs(1 - 2 * fraction);
-  const terminatorSweep = waxing !== isGibbous ? 1 : 0;
-  const limbSweep = waxing ? 0 : 1;
-
-  const litPath = [
-    `M ${CENTER} ${CENTER - RADIUS}`,
-    `A ${terminatorRadiusX} ${RADIUS} 0 0 ${terminatorSweep} ${CENTER} ${CENTER + RADIUS}`,
-    `A ${RADIUS} ${RADIUS} 0 0 ${limbSweep} ${CENTER} ${CENTER - RADIUS}`,
-    "Z",
-  ].join(" ");
+  const litPath = getMoonPhasePath({ fraction, waxing, center: CENTER, radius: RADIUS });
 
   return (
     <svg

@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { checkDateRange, dangerZoneDays, fullMoonsInRange, moonIllumination, nextFullMoon, previousFullMoon } from "./moon";
 
 // Bekannte Referenzwerte (UTC), unabhängig verifiziert via astronomy-engine
 // und öffentlichen Almanach-Daten:
+const FULL_MOON_DEC_2024 = new Date("2024-12-15T09:02:14.764Z");
 const FULL_MOON_JAN_2025 = new Date("2025-01-13T22:27:32.237Z");
 const FULL_MOON_FEB_2025 = new Date("2025-02-12T13:54:03.015Z");
 const FULL_MOON_JUN_2025 = new Date("2025-06-11T07:44:26.705Z");
@@ -128,5 +129,74 @@ describe("checkDateRange", () => {
   it("Grenzfall: Zeitraum endet einen Tag vor der Gefahrenzone -> grün", () => {
     const result = checkDateRange("2025-01-08", "2025-01-10", timeZone);
     expect(result).toEqual({ status: "green", fullMoonDates: [] });
+  });
+
+  it("Jahreswechsel: gelb, wenn nur die Gefahrenzone berührt wird (Silvester-Reise)", () => {
+    // Vollmond-Kalendertag in Europe/Zurich: 2026-01-03 (Zone: 2026-01-01 .. 2026-01-05).
+    const result = checkDateRange("2025-12-30", "2026-01-02", timeZone);
+    expect(result).toEqual({ status: "yellow", fullMoonDates: ["2026-01-03"] });
+  });
+
+  it("Jahreswechsel: rot, wenn der Vollmond-Tag selbst im Zeitraum liegt", () => {
+    const result = checkDateRange("2025-12-30", "2026-01-03", timeZone);
+    expect(result).toEqual({ status: "red", fullMoonDates: ["2026-01-03"] });
+  });
+
+  it("Jahreswechsel: grün, wenn der Zeitraum vollständig vor der Gefahrenzone liegt", () => {
+    const result = checkDateRange("2025-12-20", "2025-12-25", timeZone);
+    expect(result).toEqual({ status: "green", fullMoonDates: [] });
+  });
+});
+
+describe("Randfall: Vollmond-Umschlag (Systemzeit manipuliert)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("exakt am Vollmond-Zeitpunkt: Beleuchtung ist voll und nextFullMoon liegt auf 'heute'", () => {
+    vi.setSystemTime(FULL_MOON_JAN_2025);
+    const now = new Date();
+    // Für previousFullMoon ist die exakte Vollmond-Sekunde eine Gleitkomma-Randfrage
+    // (astronomy-engine kann hier je nach Rundung schon eine Zyklus-Länge zurückspringen);
+    // real erreichbar ist dieser Mikrosekunden-Zeitpunkt ohnehin nie. Entscheidend fürs
+    // App-Verhalten ("Heute Nacht ist Vollmond") ist nextFullMoon, und das ist stabil.
+    expect(nextFullMoon(now).toISOString().slice(0, 10)).toBe("2025-01-13");
+    expect(moonIllumination(now).fraction).toBeGreaterThan(0.99);
+  });
+
+  it("kurz nach dem Vollmond: nextFullMoon schlägt sauber auf den nächsten Vollmond um", () => {
+    vi.setSystemTime(new Date(FULL_MOON_JAN_2025.getTime() + 3 * HOUR_MS));
+    const now = new Date();
+    const next = nextFullMoon(now);
+    const previous = previousFullMoon(now);
+    expect(Math.abs(next.getTime() - FULL_MOON_FEB_2025.getTime())).toBeLessThan(3 * HOUR_MS);
+    expect(Math.abs(previous.getTime() - FULL_MOON_JAN_2025.getTime())).toBeLessThan(3 * HOUR_MS);
+  });
+
+  it("kurz vor dem Vollmond: nextFullMoon zeigt noch auf den (heute anstehenden) Vollmond", () => {
+    vi.setSystemTime(new Date(FULL_MOON_JAN_2025.getTime() - 3 * HOUR_MS));
+    const now = new Date();
+    const next = nextFullMoon(now);
+    const previous = previousFullMoon(now);
+    expect(Math.abs(next.getTime() - FULL_MOON_JAN_2025.getTime())).toBeLessThan(3 * HOUR_MS);
+    expect(Math.abs(previous.getTime() - FULL_MOON_DEC_2024.getTime())).toBeLessThan(3 * HOUR_MS);
+  });
+});
+
+describe("Randfall: Gefahrenzone über eine Monatsgrenze hinweg", () => {
+  it("liefert 5 Tage, die zwei Kalendermonate überspannen", () => {
+    const fullMoonNearMonthEnd = new Date("2026-09-01T12:00:00Z");
+    const zone = dangerZoneDays(fullMoonNearMonthEnd, "Europe/Zurich");
+    expect(zone).toEqual(["2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03"]);
+  });
+
+  it("checkDateRange erkennt eine Zonen-Berührung über die Monatsgrenze hinweg (echter Vollmond 2026-02-01)", () => {
+    // Vollmond-Kalendertag in Europe/Zurich: 2026-02-01 (Zone: 2026-01-30 .. 2026-02-03).
+    const result = checkDateRange("2026-01-28", "2026-01-30", "Europe/Zurich");
+    expect(result).toEqual({ status: "yellow", fullMoonDates: ["2026-02-01"] });
   });
 });

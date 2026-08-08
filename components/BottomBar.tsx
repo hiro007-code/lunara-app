@@ -21,7 +21,7 @@ export function BottomBar() {
               key={tab.href}
               href={tab.href}
               aria-current={isActive ? "page" : undefined}
-              className={`flex-1 py-4 text-center text-sm transition-colors ${
+              className={`focus-ring flex-1 py-4 text-center text-sm transition-colors ${
                 isActive ? "text-foreground" : "text-foreground-muted"
               }`}
             >

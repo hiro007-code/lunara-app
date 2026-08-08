@@ -59,7 +59,7 @@ export function DateCheck({ timeZone }: DateCheckProps) {
             required
             value={startDate}
             onChange={(event) => setStartDate(event.target.value)}
-            className="[color-scheme:dark] rounded-md border border-white/10 bg-transparent px-3 py-2 text-foreground"
+            className="focus-ring [color-scheme:dark] rounded-md border border-white/10 bg-transparent px-3 py-2 text-foreground"
           />
         </label>
         <label className="flex flex-1 flex-col gap-1 text-sm text-foreground-muted">
@@ -69,7 +69,7 @@ export function DateCheck({ timeZone }: DateCheckProps) {
             required
             value={endDate}
             onChange={(event) => setEndDate(event.target.value)}
-            className="[color-scheme:dark] rounded-md border border-white/10 bg-transparent px-3 py-2 text-foreground"
+            className="focus-ring [color-scheme:dark] rounded-md border border-white/10 bg-transparent px-3 py-2 text-foreground"
           />
         </label>
       </div>
