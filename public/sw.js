@@ -1,10 +1,22 @@
-// Bewusst einfach gehaltener, handgeschriebener Service Worker (SPEC.md §4) –
-// keine Library nötig: cached App-Shell-URLs beim Install, danach alle
-// same-origin GET-Requests "cache-first" beim ersten Laden (Laufzeit-Cache),
-// damit auch content-gehashte Next.js-Build-Assets ohne bekannte Dateinamen
-// erfasst werden. So funktioniert die App offline nach dem ersten Laden (§7).
+// Bewusst einfach gehaltener, handgeschriebener Service Worker (SPEC.md §4).
+// Zwei Strategien je nach Request-Typ (Etappe 9.1 – vorher war alles cache-first,
+// wodurch Deployments installierte Apps mit gefülltem Cache nie erreicht haben):
+// - Navigationen (HTML-Seiten, request.mode "navigate"): network-first, siehe
+//   fetch-Handler unten. Updates kommen so sofort an; nur bei Netzfehler
+//   (offline) fällt die Antwort auf den zuletzt gecachten Stand zurück.
+// - Alles andere (content-gehashte /_next/static/-Assets, Icons, Manifest):
+//   cache-first als Laufzeit-Cache, damit auch Next.js-Build-Assets ohne
+//   bekannte Dateinamen erfasst werden. Für /_next/static/ ist das korrekt,
+//   weil der Dateiname sich bei jeder Änderung ändert (unveränderlich); für
+//   Icons/Manifest ist es ein bewusster Kompromiss zugunsten von Offline/
+//   Ladezeit (§7).
+// So funktioniert die App offline nach dem ersten Laden (§7). Wichtig: Wer an
+// dieser Cache-Struktur etwas ändert, muss CACHE_VERSION erhöhen, sonst bleiben
+// installierte Clients auf dem alten (potenziell inkompatiblen) Cache-Inhalt
+// hängen – der activate-Handler unten löscht alte Versionen nur bei einer
+// tatsächlichen Versionsänderung.
 
-const CACHE_VERSION = "lunara-v1";
+const CACHE_VERSION = "lunara-v2";
 const APP_SHELL = ["/", "/planung", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -44,6 +56,28 @@ self.addEventListener("fetch", (event) => {
   cacheUrl.searchParams.delete("_rsc");
   const cacheKey = cacheUrl.toString();
 
+  // Navigationen (Seitenaufrufe, z. B. App-Start von Homescreen/URL, Reload):
+  // network-first. Erst das Netz versuchen und die frische Antwort cachen; nur
+  // bei Netzfehler (offline) auf den zuletzt gecachten Stand zurückfallen. So
+  // sieht eine bereits installierte App bei jedem Öffnen mit Netz automatisch
+  // den aktuellen Deploy-Stand (Etappe 9.1) – cache-first hätte das verhindert.
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const responseClone = response.clone();
+            caches.open(CACHE_VERSION).then((cache) => cache.put(cacheKey, responseClone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(cacheKey, { ignoreVary: true })),
+    );
+    return;
+  }
+
+  // Alles andere (Build-Assets, Icons, Manifest): cache-first, siehe Kommentar
+  // am Dateianfang.
   event.respondWith(
     // ignoreVary: Next.js-Antworten setzen "Vary: rsc, next-router-state-tree, ...";
     // je nach Prefetch- vs. Vollnavigation unterscheiden sich diese Header, ohne
