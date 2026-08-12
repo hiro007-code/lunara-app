@@ -10,8 +10,6 @@ const STATS_TIMEOUT_MS = 5000;
 export type AdminStats = {
   total: number;
   last7days: number;
-  /** Älteste zuerst, genau 12 Einträge (auch Wochen ohne Aktivierung, Zählung 0). */
-  weekly: { weekStart: string; count: number }[];
   platforms: Record<Platform, number>;
   pushSubscriptions: number;
 };

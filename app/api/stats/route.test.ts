@@ -46,7 +46,7 @@ describe("GET /api/stats (Admin-Statistik, SPEC.md §2.7)", () => {
     expect(getSql).not.toHaveBeenCalled();
   });
 
-  it("akzeptiert einen gültigen Token und liefert die erweiterten Stats", async () => {
+  it("akzeptiert einen gültigen Token und liefert die Stats", async () => {
     vi.stubEnv("ADMIN_SECRET", "richtig");
     isDatabaseConfigured.mockReturnValue(true);
 
@@ -54,10 +54,6 @@ describe("GET /api/stats (Admin-Statistik, SPEC.md §2.7)", () => {
       .fn()
       .mockResolvedValueOnce([{ count: 42 }])
       .mockResolvedValueOnce([{ count: 5 }])
-      .mockResolvedValueOnce([
-        { week_start: "2026-05-25", count: 0 },
-        { week_start: "2026-06-01", count: 3 },
-      ])
       .mockResolvedValueOnce([
         { platform: "ios", count: 20 },
         { platform: "android", count: 22 },
@@ -72,10 +68,6 @@ describe("GET /api/stats (Admin-Statistik, SPEC.md §2.7)", () => {
     expect(body).toEqual({
       total: 42,
       last7days: 5,
-      weekly: [
-        { weekStart: "2026-05-25", count: 0 },
-        { weekStart: "2026-06-01", count: 3 },
-      ],
       platforms: { ios: 20, android: 22, other: 0 },
       pushSubscriptions: 7,
     });

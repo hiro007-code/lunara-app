@@ -68,7 +68,7 @@ gespeichert – keine Personendaten, keine IP-Adressen.
 Ohne `DATABASE_URL` liefern beide Routen einen sauberen `503`-JSON-Fehler
 statt zu crashen – Build und restliche App funktionieren auch ohne DB.
 
-**`GET /api/stats`** liefert `{ total, last7days, weekly, platforms,
+**`GET /api/stats`** liefert `{ total, last7days, platforms,
 pushSubscriptions }` – nur mit gültigem `x-admin-token`-Header (siehe
 [Admin-Statistik](#admin-statistik)):
 

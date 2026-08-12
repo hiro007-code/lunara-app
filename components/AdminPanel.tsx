@@ -47,8 +47,6 @@ export function AdminPanel() {
 }
 
 function AdminStatsSummary({ stats }: { stats: AdminStats }) {
-  const maxWeekly = Math.max(1, ...stats.weekly.map((week) => week.count));
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
@@ -60,22 +58,6 @@ function AdminStatsSummary({ stats }: { stats: AdminStats }) {
       <div className="flex flex-col gap-1">
         {(Object.keys(PLATFORM_LABELS) as Platform[]).map((platform) => (
           <StatRow key={platform} label={PLATFORM_LABELS[platform]} value={stats.platforms[platform]} small />
-        ))}
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs text-foreground-muted">Wochenverlauf (12 Wochen)</span>
-        {stats.weekly.map((week) => (
-          <div key={week.weekStart} className="flex items-center gap-2 text-xs text-foreground-muted">
-            <span className="w-20 shrink-0">{week.weekStart}</span>
-            <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
-              <span
-                className="block h-full rounded-full bg-white/25"
-                style={{ width: `${(week.count / maxWeekly) * 100}%` }}
-              />
-            </span>
-            <span className="w-5 shrink-0 text-right">{week.count}</span>
-          </div>
         ))}
       </div>
     </div>

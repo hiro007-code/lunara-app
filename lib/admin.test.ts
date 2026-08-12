@@ -127,7 +127,6 @@ describe("loadAdminStats (Panel-Sichtbarkeitslogik)", () => {
     const stats = {
       total: 12,
       last7days: 3,
-      weekly: [{ weekStart: "2026-08-03", count: 2 }],
       platforms: { ios: 5, android: 6, other: 1 },
       pushSubscriptions: 4,
     };
