@@ -23,7 +23,7 @@ npm install
 npm run dev      # Dev-Server auf http://localhost:3000
 npm run build    # Produktions-Build
 npm run start    # Produktions-Build lokal servieren
-npm test         # Vitest (lib/moon.ts, lib/timezone.ts, lib/activation.ts, lib/onboarding.ts, lib/push.ts, lib/reminder.ts)
+npm test         # Vitest (lib/moon.ts, lib/timezone.ts, lib/activation.ts, lib/onboarding.ts, lib/push.ts, lib/reminder.ts, lib/admin.ts)
 npm run db:setup # Legt/aktualisiert die Tabellen an (idempotent)
 ```
 
@@ -68,12 +68,38 @@ gespeichert – keine Personendaten, keine IP-Adressen.
 Ohne `DATABASE_URL` liefern beide Routen einen sauberen `503`-JSON-Fehler
 statt zu crashen – Build und restliche App funktionieren auch ohne DB.
 
-**`GET /api/stats`** liefert `{ total, last7days }` – nützlich, um die
-Aktivierung schnell zu verifizieren:
+**`GET /api/stats`** liefert `{ total, last7days, weekly, platforms,
+pushSubscriptions }` – nur mit gültigem `x-admin-token`-Header (siehe
+[Admin-Statistik](#admin-statistik)):
 
 ```bash
-curl https://<deployment-url>/api/stats
+curl -H "x-admin-token: $ADMIN_SECRET" https://<deployment-url>/api/stats
 ```
+
+## Admin-Statistik
+
+Rein für die Betreiberin gedachte Zusatzansicht (SPEC.md §2.7) auf die
+bereits gespeicherten, anonymen Aktivierungszahlen – keine zusätzliche
+Datenerhebung, kein Einfluss auf die App für andere Nutzerinnen.
+
+**Setup:**
+
+1. Zufälliges Secret erzeugen und als `ADMIN_SECRET` in den
+   Vercel-Projekteinstellungen eintragen (**kein** `NEXT_PUBLIC_`-Prefix –
+   das Secret darf nie an den Browser ausgeliefert werden). Danach lokal
+   laden: `vercel env pull .env.local`.
+2. Einmal `https://<deployment-url>/?admin=<ADMIN_SECRET>` öffnen (in
+   Chrome/Safari oder direkt in der installierten App). Der Token wird
+   nach `localStorage` übernommen und sofort wieder aus der Adresszeile
+   entfernt.
+3. Ab dann erscheint unten in der Planung-View dauerhaft eine
+   Admin-Statistik-Sektion – auch nach Reload, geräteweit gültig, bis
+   `localStorage` gelöscht wird oder der Server den Token ablehnt.
+
+Der Browser prüft den Token nicht selbst; jede Anfrage an `/api/stats`
+wird serverseitig gegen `ADMIN_SECRET` geprüft. Ein abgelehnter Token
+(401) wird lokal sofort verworfen, ein vorübergehender Fehler
+(Datenbank/Netzwerk) behält ihn und zeigt die Sektion einfach ohne Zahlen.
 
 ## Push-Erinnerungen
 

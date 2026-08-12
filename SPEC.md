@@ -82,6 +82,14 @@ Eine minimalistische Web-App für eine Familie mit Zwillingen (3 J.), die auf Vo
 - Vom Push-Dienst als ungültig gemeldete Subscriptions (HTTP 404/410, z. B. abgemeldetes Gerät) werden automatisch aus der Datenbank entfernt
 - Der Cron-Endpunkt akzeptiert ausschliesslich Aufrufe mit `Authorization: Bearer $CRON_SECRET` (von Vercel Cron bei gesetztem `CRON_SECRET` automatisch mitgeschickt); alle anderen Anfragen erhalten 401
 
+### 2.7 Admin-Statistik
+
+- Rein für die Betreiberin gedachte, token-geschützte Zusatzansicht auf die bereits über den anonymen Aktivierungszähler (§2.5) gespeicherten Daten – keine neue Datenerhebung, kein Einfluss auf Onboarding, Aktivierung oder Erinnerungen für andere Nutzerinnen
+- Zugriff: einmaliges Öffnen von `/?admin=<ADMIN_SECRET>` (auf einer beliebigen Seite) übernimmt den Token in `localStorage` und entfernt ihn sofort wieder aus der Adresszeile (`history.replaceState`, andere Query-Parameter bleiben erhalten); ab dann bleibt der Admin-Bereich auf diesem Gerät dauerhaft sichtbar – auch nach Reload und in der installierten App
+- Der Client validiert den Token nicht selbst – Prüfung ausschliesslich serverseitig bei jedem Aufruf von `GET /api/stats` gegen `ADMIN_SECRET` (Header `x-admin-token`); fehlender oder falscher Token liefert `401`, ohne konfiguriertes `ADMIN_SECRET` ist die Route für niemanden erreichbar
+- Ein vom Server abgelehnter Token (401) wird im Client sofort verworfen (lokal gelöscht) und zeigt einen dezenten Fehlerhinweis statt der Zahlen; ein vorübergehender Fehler (Datenbank/Netzwerk) behält den Token, zeigt aber ebenfalls keine Zahlen
+- Anzeige: eigene, ruhige Sektion (Stil §5) unten in der Planung-View, nur bei vorhandenem Token sichtbar – Aktivierungen gesamt, letzte 7 Tage, Verteilung nach Plattform, Anzahl Push-Abos sowie ein Wochenverlauf der letzten 12 Wochen (einfache Textliste mit dezenten Balken, kein Chart-Package, §4 bleibt unberührt)
+
 ---
 
 ## 3. Fachliche Logik: Mondberechnung
@@ -110,6 +118,7 @@ Eine minimalistische Web-App für eine Familie mit Zwillingen (3 J.), die auf Vo
 | Zeitzonen | `Intl.DateTimeFormat` (+ ggf. `date-fns` / `date-fns-tz`) |
 | State/Persistenz | React State + Context (aktive Zeitzone) + `localStorage` (Zeitzonen-Favoriten) |
 | Backend/DB | Grundsätzlich **keins**; Backend-Ausnahme: fünf Serverless-Routen (`/api/activate`, `/api/stats`, `/api/push/subscribe`, `/api/push/unsubscribe`, `/api/cron/notify`) mit Neon Postgres (Vercel Marketplace, `@neondatabase/serverless`). Zweck: anonymer Aktivierungszähler sowie Speicherung/Versand von Push-Subscriptions für Vollmond-Erinnerungen. Tabellen (inkl. `last_notified_at`) per `scripts/setup-db.ts` (`npm run db:setup`) |
+| Admin-Statistik | `GET /api/stats` (§2.7) nur mit gültigem Header `x-admin-token`, serverseitig geprüft gegen `ADMIN_SECRET` (nur Server, **kein** `NEXT_PUBLIC_`-Prefix). Client übernimmt den Token einmalig aus `/?admin=...` nach `localStorage`, validiert ihn aber nicht selbst |
 | Push-Benachrichtigungen | Web Push (Browser-Standard): Client nutzt `PushManager`/`Notification` zum Abonnieren, Server nutzt `web-push` (Laufzeit-Abhängigkeit, Versand im Cron-Job) zum Senden. VAPID-Schlüsselpaar einmalig per `npx web-push generate-vapid-keys` generiert – Client `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, Server `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` + `VAPID_SUBJECT` (mailto-Kontakt lt. VAPID-Spezifikation) |
 | Scheduling | Vercel Cron (`vercel.json`, täglich `0 9 * * *`) ruft `/api/cron/notify` auf; Absicherung via `CRON_SECRET` (von Vercel bei gesetzter Env-Var automatisch als `Authorization: Bearer`-Header mitgeschickt) |
 | PWA | Manifest (`app/manifest.ts`) + generierte Icons (`next/og`, konsistent mit `Moon.tsx`), damit Homescreen-Installation möglich; offline-fähig via handgeschriebenem Service Worker (`public/sw.js`) |
@@ -180,6 +189,7 @@ Beruhigend, dunkel, völlig minimalistisch. Die App soll sich anfühlen wie ein 
 - Ladezeit: instant, kein Spinner nötig (alles client-side berechenbar)
 - Funktioniert offline nach erstem Laden (PWA)
 - Keine Cookies, kein Tracking ausser einem anonymen Aktivierungszähler (zufällige UUID, Zeitstempel, grobe Plattform ios/android/other – keine Personendaten, keine IP-Speicherung, keine weiteren Pings), keine Analytics
+- Die Admin-Statistik (§2.7) erhebt keine zusätzlichen Daten – reine, token-geschützte Ansicht der bereits gespeicherten anonymen Aktivierungszahlen für die Betreiberin, ohne Wirkung auf App-Verhalten oder Datenschutz für andere Nutzerinnen
 - Tests für `lib/moon.ts`: mindestens die Randfälle (Vollmond nahe Mitternacht, Zeitzonen-Datumskippen, Zeitraum-Ampel-Logik)
 - Erinnerungs-Versand: höchstens eine Push-Benachrichtigung pro Subscription und Kalendertag (Doppelsendungs-Schutz, §2.6); vom Push-Dienst als ungültig gemeldete Subscriptions werden automatisch entfernt statt bei jedem Cron-Lauf erneut zu scheitern
 
@@ -195,6 +205,7 @@ Beruhigend, dunkel, völlig minimalistisch. Die App soll sich anfühlen wie ein 
 6. **Feinschliff:** PWA, Randfälle, Design-Polish
 7. **Onboarding & Aktivierung:** Onboarding-Screen, Install-Anleitung, anonymer Aktivierungszähler via Neon Postgres (§2.5, §4, §7)
 8. **Vollmond-Erinnerungen:** Push-Abo im Onboarding/in der Planung-View sowie täglicher Cron-Versand via `web-push` (§2.5, §2.6, §4, §7)
+9. **Admin-Statistik:** Token-geschützte Zusatzansicht (`/?admin=...`, `ADMIN_SECRET`) in der Planung-View mit erweiterten Kennzahlen zu `/api/stats` (§2.7, §4, §7)
 
 > Pro Prompt genau **eine** Etappe umsetzen. Immer auf dieses Dokument verweisen.
 
@@ -209,3 +220,4 @@ Beruhigend, dunkel, völlig minimalistisch. Die App soll sich anfühlen wie ein 
 | 2026-08-08 | Etappe 7: Onboarding-Screen mit Install-Anleitung und anonymem Aktivierungszähler (§2.5). Backend-Ausnahme (§4): `/api/activate`, `/api/stats` mit Neon Postgres (Vercel Marketplace, `@neondatabase/serverless`). Tracking-Hinweis in §7 präzisiert. |
 | 2026-08-08 | Push-Erinnerungen als Erweiterung von Block 3 (§2.5): Benachrichtigungs-Berechtigung beim Aktivieren (ausser iOS-Browser-Tab), Erinnerungs-Toggle in der Planung-View. Backend-Ausnahme (§4) um `/api/push/subscribe`/`/api/push/unsubscribe` sowie VAPID-Schlüsselpaar ergänzt. |
 | 2026-08-08 | Etappe 8: Neuer §2.6 (Versand) – täglicher Cron-Job (`/api/cron/notify`, Vercel Cron) verschickt Vollmond-Erinnerungen 7/3 Tage vorher via `web-push`, mit Doppelsendungs-Schutz (`last_notified_at`) und automatischer Bereinigung ungültiger Subscriptions. `web-push` als Laufzeit-Abhängigkeit, `vercel.json` sowie `VAPID_PUBLIC_KEY`/`VAPID_SUBJECT`/`CRON_SECRET` in §4 ergänzt; §7 um die Versand-Qualitätsanforderungen erweitert. |
+| 2026-08-12 | Etappe 9: Neuer §2.7 (Admin-Statistik) – `GET /api/stats` ist nicht mehr öffentlich, sondern nur noch mit Header `x-admin-token` gegen `ADMIN_SECRET` erreichbar, und liefert zusätzlich Wochenverlauf (12 Wochen), Plattform-Verteilung und Anzahl Push-Abos. Client übernimmt den Token einmalig aus `/?admin=...` nach `localStorage` (sofortige Entfernung aus der Adresszeile), validiert ihn aber nicht selbst; dezente Statistik-Sektion unten in der Planung-View, sichtbar nur mit gültigem Token. `ADMIN_SECRET` in §4 ergänzt; §7 um den Hinweis auf reine Ansicht ohne zusätzliche Datenerhebung erweitert. |

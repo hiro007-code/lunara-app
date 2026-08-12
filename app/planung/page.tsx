@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AboutSheet } from "@/components/AboutSheet";
+import { AdminPanel } from "@/components/AdminPanel";
 import { DateCheck } from "@/components/DateCheck";
 import { FullMoonList } from "@/components/FullMoonList";
 import { ReminderToggle } from "@/components/ReminderToggle";
@@ -36,6 +37,8 @@ export default function PlanungPage() {
       </section>
 
       <ReminderToggle />
+
+      <AdminPanel />
 
       <div className="flex flex-1 items-end justify-center pt-6">
         <button

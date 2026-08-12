@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { AdminTokenCapture } from "@/components/AdminTokenCapture";
 import { BottomBar } from "@/components/BottomBar";
 import { OnboardingGate } from "@/components/OnboardingGate";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
@@ -42,6 +43,7 @@ export default function RootLayout({
     <html lang="de" className={inter.variable}>
       <body className="bg-background font-sans text-foreground antialiased">
         <ServiceWorkerRegistration />
+        <AdminTokenCapture />
         {/* TimezoneProvider umschliesst auch das Onboarding: Block 3 braucht die
             aktive Zeitzone bereits für die Push-Subscription (SPEC.md §2.5). */}
         <TimezoneProvider>
