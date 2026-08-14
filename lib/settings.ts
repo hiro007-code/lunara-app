@@ -37,6 +37,11 @@ export function formatOffsetLabel(offset: number): string {
   return offset < 0 ? `${days} ${unit} vorher` : `${days} ${unit} nachher`;
 }
 
+/** Kompakte Zusammenfassung für die zusammengeklappte Einstellungs-Zeile, z. B. "Kritische Phase: 7 Tage vorher – Vollmond". */
+export function formatCriticalPhaseSummary(startOffset: number, endOffset: number): string {
+  return `Kritische Phase: ${formatOffsetLabel(startOffset)} – ${formatOffsetLabel(endOffset)}`;
+}
+
 function isLocalStorageAvailable(): boolean {
   return typeof localStorage !== "undefined";
 }

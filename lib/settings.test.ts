@@ -3,6 +3,7 @@ import {
   DEFAULT_CRITICAL_PHASE_SETTINGS,
   clampCriticalPhaseEnd,
   clampCriticalPhaseStart,
+  formatCriticalPhaseSummary,
   formatOffsetLabel,
   loadCriticalPhaseSettings,
   saveCriticalPhaseSettings,
@@ -27,6 +28,24 @@ describe("formatOffsetLabel", () => {
 
   it("formatiert +1 im Singular", () => {
     expect(formatOffsetLabel(1)).toBe("1 Tag nachher");
+  });
+});
+
+describe("formatCriticalPhaseSummary", () => {
+  it("formatiert den Default (-7..0), inkl. 'Vollmond'", () => {
+    expect(formatCriticalPhaseSummary(-7, 0)).toBe("Kritische Phase: 7 Tage vorher – Vollmond");
+  });
+
+  it("formatiert einen Bereich, der bis nach dem Vollmond reicht, inkl. '1 Tag nachher'", () => {
+    expect(formatCriticalPhaseSummary(-1, 1)).toBe("Kritische Phase: 1 Tag vorher – 1 Tag nachher");
+  });
+
+  it("formatiert eine Phase, die genau am Vollmond beginnt und endet", () => {
+    expect(formatCriticalPhaseSummary(0, 0)).toBe("Kritische Phase: Vollmond – Vollmond");
+  });
+
+  it("formatiert die Extremwerte des erlaubten Bereichs", () => {
+    expect(formatCriticalPhaseSummary(-10, 5)).toBe("Kritische Phase: 10 Tage vorher – 5 Tage nachher");
   });
 });
 
