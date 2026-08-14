@@ -1,24 +1,18 @@
-import { dangerZoneDays, fullMoonsInRange } from "@/lib/moon";
-import { calendarDateToUTC, formatDate, formatShortDate, formatTime, formatWeekday, shiftCalendarDate, toCalendarDate } from "@/lib/timezone";
+import { criticalPhaseDays, fullMoonsInRange } from "@/lib/moon";
+import { calendarDateToUTC, formatCalendarDayRange, formatDate, formatTime, formatWeekday, shiftCalendarDate, toCalendarDate } from "@/lib/timezone";
 
 const HORIZON_MONTHS = 18;
 
 type FullMoonListProps = {
   now: Date;
   timeZone: string;
+  startOffset: number;
+  endOffset: number;
 };
 
-function dayOfMonth(isoDate: string): number {
-  return Number(isoDate.slice(8, 10));
-}
-
-/** "Zone: 12.–16. Okt" – bzw. mit Monat auf beiden Seiten, falls die Zone die Monatsgrenze kreuzt. */
-function formatDangerZoneLabel(zone: string[]): string {
-  const end = formatShortDate(calendarDateToUTC(zone[4]), "UTC");
-  if (zone[0].slice(0, 7) === zone[4].slice(0, 7)) {
-    return `Zone: ${dayOfMonth(zone[0])}.–${end}`;
-  }
-  return `Zone: ${formatShortDate(calendarDateToUTC(zone[0]), "UTC")}–${end}`;
+/** "Kritische Phase: 21.–28. Aug" */
+function formatCriticalPhaseLabel(phase: string[]): string {
+  return `Kritische Phase: ${formatCalendarDayRange(phase)}`;
 }
 
 function groupByYear(dates: Date[], timeZone: string): Map<string, Date[]> {
@@ -35,8 +29,16 @@ function groupByYear(dates: Date[], timeZone: string): Map<string, Date[]> {
   return groups;
 }
 
-function FullMoonRow({ date, timeZone, muted }: { date: Date; timeZone: string; muted?: boolean }) {
-  const zone = dangerZoneDays(date, timeZone);
+type FullMoonRowProps = {
+  date: Date;
+  timeZone: string;
+  startOffset: number;
+  endOffset: number;
+  muted?: boolean;
+};
+
+function FullMoonRow({ date, timeZone, startOffset, endOffset, muted }: FullMoonRowProps) {
+  const phase = criticalPhaseDays(date, timeZone, startOffset, endOffset);
   return (
     <li className={`flex flex-col gap-1 py-3 ${muted ? "opacity-40" : ""}`}>
       <div className="flex items-baseline justify-between gap-4">
@@ -45,13 +47,13 @@ function FullMoonRow({ date, timeZone, muted }: { date: Date; timeZone: string; 
         </span>
         <span className="shrink-0 text-sm text-foreground-muted">{formatTime(date, timeZone)}</span>
       </div>
-      <span className="text-xs text-amber">{formatDangerZoneLabel(zone)}</span>
+      <span className="text-xs text-amber">{formatCriticalPhaseLabel(phase)}</span>
     </li>
   );
 }
 
 /** Jahresübersicht (SPEC.md §2.2a): vergangene Vollmonde des laufenden Monats (ausgegraut) oberhalb der nächsten 18 Monate. */
-export function FullMoonList({ now, timeZone }: FullMoonListProps) {
+export function FullMoonList({ now, timeZone, startOffset, endOffset }: FullMoonListProps) {
   const today = toCalendarDate(now, timeZone);
   const monthStartDay = `${today.slice(0, 7)}-01`;
 
@@ -77,7 +79,14 @@ export function FullMoonList({ now, timeZone }: FullMoonListProps) {
       {pastThisMonth.length > 0 && (
         <ul className="divide-y divide-white/10">
           {pastThisMonth.map((date) => (
-            <FullMoonRow key={date.toISOString()} date={date} timeZone={timeZone} muted />
+            <FullMoonRow
+              key={date.toISOString()}
+              date={date}
+              timeZone={timeZone}
+              startOffset={startOffset}
+              endOffset={endOffset}
+              muted
+            />
           ))}
         </ul>
       )}
@@ -87,7 +96,7 @@ export function FullMoonList({ now, timeZone }: FullMoonListProps) {
           <h3 className="text-xs text-foreground-muted">{year}</h3>
           <ul className="divide-y divide-white/10">
             {dates.map((date) => (
-              <FullMoonRow key={date.toISOString()} date={date} timeZone={timeZone} />
+              <FullMoonRow key={date.toISOString()} date={date} timeZone={timeZone} startOffset={startOffset} endOffset={endOffset} />
             ))}
           </ul>
         </div>

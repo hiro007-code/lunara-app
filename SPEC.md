@@ -31,16 +31,17 @@ Eine minimalistische Web-App für eine Familie mit Zwillingen (3 J.), die auf Vo
 **a) Jahresübersicht**
 - Liste aller Vollmonde der nächsten **18 Monate**
 - Pro Eintrag: Datum, Wochentag, Uhrzeit (in gewählter Zeitzone)
-- Gefahrenzone **±2 Tage** um jeden Vollmond visuell markiert (dezentes Amber)
+- Statt einer festen "Gefahrenzone" markiert die App eine pro Gerät konfigurierbare **kritische Phase**: ein Fenster relativ zum Vollmond-Kalendertag mit Start-Offset (wählbar 10 bis 1 Tage vorher) und End-Offset (wählbar 3 Tage vorher bis 5 Tage nachher, inklusive "Vollmond" = 0 Tage); Start-Offset darf nie nach dem End-Offset liegen. **Default: 7 Tage vorher bis Vollmond.** Die Einstellung liegt in `localStorage` (wie die Zeitzonen-Favoriten, §2.3) und gilt gemeinsam für Jahresübersicht **und** Datums-Check. Die Phase pro Vollmond ist visuell markiert (dezentes Amber)
+- Ungültige Start/Ende-Kombinationen werden durch automatisches Anpassen des jeweils anderen Werts verhindert, nicht durch eine Fehlermeldung
 - Vergangene Vollmonde des laufenden Monats optional ausgegraut sichtbar
 
 **b) Datums-Check (Reise-Ampel)**
 - Eingabe: Startdatum + Enddatum (Reisezeitraum), optional Ziel-Zeitzone
-- Ausgabe als Ampel:
-  - 🟢 **Grün:** kein Vollmond und keine Gefahrenzone im Zeitraum
-  - 🟡 **Gelb:** Gefahrenzone (±2 Tage) berührt den Zeitraum, aber kein Vollmond-Tag
-  - 🔴 **Rot:** mindestens ein Vollmond-Tag liegt im Zeitraum
-- Bei Gelb/Rot: betroffene Daten konkret nennen ("Vollmond am 14. Okt")
+- Zwei Ergebnisse, keine Zwischenstufe – der Sicherheitsabstand ist Sache der konfigurierten kritischen Phase selbst:
+  - 🟢 **frei:** der Reisezeitraum überschneidet sich mit keiner kritischen Phase
+  - 🔴 **kritisch:** der Reisezeitraum überschneidet sich mit mindestens einer kritischen Phase
+- Bei "kritisch" nennt die App das Ausmass (Anzahl betroffener Reisetage von den gesamten Reisetagen) sowie die konkreten überschneidenden Daten und den zugehörigen Vollmond (z. B. "21.–23. Aug, Vollmond am Fr, 28. Aug")
+- Nutzt dieselbe konfigurierte kritische Phase (Start-/End-Offset) wie die Jahresübersicht (a)
 
 ### 2.3 Zeitzonen-Wahl
 
@@ -102,7 +103,8 @@ Eine minimalistische Web-App für eine Familie mit Zwillingen (3 J.), die auf Vo
   - Alle Vollmonde in einem Zeitraum (18 Monate voraus)
   - Aktuelle Mondphase / Beleuchtungsgrad (0–1) fürs Visual
 - Alle Zeitpunkte intern in **UTC** halten; Umrechnung in Anzeige-Zeitzone erst beim Rendern via `Intl.DateTimeFormat` / `date-fns-tz`
-- **Gefahrenzone:** Kalendertage in der gewählten Zeitzone: Vollmond-Tag ±2 Tage (insgesamt 5 Tage)
+- **Kritische Phase:** `criticalPhaseDays(fullMoon, timeZone, startOffset, endOffset)` – Kalendertage der Phase in der gewählten Zeitzone als ISO-Datumsstrings; `startOffset`/`endOffset` sind ganze Tage relativ zum Vollmond-Kalendertag (negativ = vorher, 0 = Vollmond, positiv = nachher), `startOffset <= endOffset` wird vorausgesetzt und von der UI garantiert (§2.2)
+- **Datums-Check:** `checkDateRange(start, end, timeZone, startOffset, endOffset)` liefert `{ status: 'free' | 'critical', overlapDays: string[], totalTripDays: number, fullMoonDates: string[] }` – "critical" bei jeder Überschneidung des Reisezeitraums mit einer kritischen Phase, kein Zwischenzustand (§2.2b)
 - Randfall beachten: Vollmond nahe Mitternacht kann je nach Zeitzone auf ein anderes Datum fallen – deshalb Datumszuordnung immer erst nach Zeitzonen-Umrechnung
 
 ---
@@ -116,7 +118,7 @@ Eine minimalistische Web-App für eine Familie mit Zwillingen (3 J.), die auf Vo
 | Styling | Tailwind CSS |
 | Mondberechnung | `astronomy-engine` |
 | Zeitzonen | `Intl.DateTimeFormat` (+ ggf. `date-fns` / `date-fns-tz`) |
-| State/Persistenz | React State + Context (aktive Zeitzone) + `localStorage` (Zeitzonen-Favoriten) |
+| State/Persistenz | React State + Context (aktive Zeitzone, kritische Phase) + `localStorage` (Zeitzonen-Favoriten, Phasen-Einstellung) |
 | Backend/DB | Grundsätzlich **keins**; Backend-Ausnahme: fünf Serverless-Routen (`/api/activate`, `/api/stats`, `/api/push/subscribe`, `/api/push/unsubscribe`, `/api/cron/notify`) mit Neon Postgres (Vercel Marketplace, `@neondatabase/serverless`). Zweck: anonymer Aktivierungszähler sowie Speicherung/Versand von Push-Subscriptions für Vollmond-Erinnerungen. Tabellen (inkl. `last_notified_at`) per `scripts/setup-db.ts` (`npm run db:setup`) |
 | Admin-Statistik | `GET /api/stats` (§2.7) nur mit gültigem Header `x-admin-token`, serverseitig geprüft gegen `ADMIN_SECRET` (nur Server, **kein** `NEXT_PUBLIC_`-Prefix). Client übernimmt den Token einmalig aus `/?admin=...` nach `localStorage`, validiert ihn aber nicht selbst |
 | Push-Benachrichtigungen | Web Push (Browser-Standard): Client nutzt `PushManager`/`Notification` zum Abonnieren, Server nutzt `web-push` (Laufzeit-Abhängigkeit, Versand im Cron-Job) zum Senden. VAPID-Schlüsselpaar einmalig per `npx web-push generate-vapid-keys` generiert – Client `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, Server `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` + `VAPID_SUBJECT` (mailto-Kontakt lt. VAPID-Spezifikation) |
@@ -137,9 +139,10 @@ Beruhigend, dunkel, völlig minimalistisch. Die App soll sich anfühlen wie ein 
 - Hintergrund: sehr dunkles Blau-Schwarz (Nachthimmel, **nicht** reines Schwarz), z. B. `#0A0E1A`-Richtung
 - Mond & Primärtext: warmes Off-White
 - Sekundärtext: gedämpftes Silber/Grau
-- Gefahrenzone & Warnungen: sanftes Amber (`--amber: #c99b5e`) – **kein grelles Rot**
-- Grün der Ampel: gedämpftes, ruhiges Grün (`--green: #7fa98e`)
-- "Rote" Ampel: eigener gedämpfter Warm-Rot-Ton `--danger: #c2705a` (unterscheidbar von Amber, aber bewusst kein grelles Rot)
+- Kritische Phase (Jahresübersicht): sanftes Amber (`--amber: #c99b5e`) – **kein grelles Rot**
+- "frei" im Datums-Check: gedämpftes, ruhiges Grün (`--green: #7fa98e`)
+- "kritisch" im Datums-Check: eigener gedämpfter Warm-Rot-Ton `--danger: #c2705a` (unterscheidbar von Amber, aber bewusst kein grelles Rot)
+- Der Datums-Check kennt bewusst **kein Gelb/keine Zwischenstufe** (§2.2b) – nur die beiden obigen Farben (Grün/Warm-Rot)
 
 ### 5.3 Typografie & Layout
 
@@ -223,3 +226,4 @@ Beruhigend, dunkel, völlig minimalistisch. Die App soll sich anfühlen wie ein 
 | 2026-08-12 | Etappe 9: Neuer §2.7 (Admin-Statistik) – `GET /api/stats` ist nicht mehr öffentlich, sondern nur noch mit Header `x-admin-token` gegen `ADMIN_SECRET` erreichbar, und liefert zusätzlich Wochenverlauf (12 Wochen), Plattform-Verteilung und Anzahl Push-Abos. Client übernimmt den Token einmalig aus `/?admin=...` nach `localStorage` (sofortige Entfernung aus der Adresszeile), validiert ihn aber nicht selbst; dezente Statistik-Sektion unten in der Planung-View, sichtbar nur mit gültigem Token. `ADMIN_SECRET` in §4 ergänzt; §7 um den Hinweis auf reine Ansicht ohne zusätzliche Datenerhebung erweitert. |
 | 2026-08-12 | Etappe 9.1 (Bugfix): `public/sw.js` lieferte Navigationen bisher cache-first ohne jede Revalidierung aus und `CACHE_VERSION` wurde nie erhöht – Deployments (u. a. Etappe 9) erreichten bestehende Installationen dadurch nie von selbst. Navigationen (`request.mode === "navigate"`) laufen jetzt network-first (Fallback auf den Cache nur bei Netzfehler); alles andere (Build-Assets, Icons, Manifest) bleibt cache-first. `CACHE_VERSION` auf `lunara-v2` erhöht, damit der `activate`-Handler alte Caches einmalig bereinigt. §7 um das Update-Verhalten ergänzt. |
 | 2026-08-12 | Etappe 9.2 (Refactor): Admin-Statistik (§2.7) verschlankt – der Wochenverlauf (12 Wochen, Balken) entfällt ersatzlos, `GET /api/stats` liefert nur noch `{ total, last7days, platforms, pushSubscriptions }`. Grund: Das Panel soll ohne Scrollen auf einen Blick erfassbar sein. |
+| 2026-08-14 | Etappe 10: Die feste "Gefahrenzone" (±2 Tage) heisst jetzt durchgängig **kritische Phase** und ist pro Gerät als Fenster relativ zum Vollmond konfigurierbar (Start-Offset 10–1 Tage vorher, End-Offset 3 Tage vorher bis 5 Tage nachher inkl. Vollmond; Default 7 Tage vorher bis Vollmond), persistiert in `localStorage`, gilt für Jahresübersicht **und** Datums-Check gemeinsam (§2.2). Der Datums-Check kennt nur noch zwei Ergebnisse, **frei** und **kritisch**, ohne Gelb-Zwischenstufe; bei "kritisch" wird das Ausmass (betroffene Reisetage) genannt (§2.2b, §5.2). `lib/moon.ts`: `dangerZoneDays` → `criticalPhaseDays(fullMoon, timeZone, startOffset, endOffset)`, `checkDateRange` bekommt die Offsets als Parameter und liefert `{ status, overlapDays, totalTripDays, fullMoonDates }` (§3). Neu: `lib/settings.ts` sowie `CriticalPhaseProvider` (Context, analog `TimezoneProvider`) für die Persistenz der Einstellung. |

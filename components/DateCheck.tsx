@@ -1,34 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { checkDateRange } from "@/lib/moon";
-import { calendarDateToUTC, formatDate, formatWeekday } from "@/lib/timezone";
-
-type Status = "green" | "yellow" | "red";
+import { checkDateRange, criticalPhaseDays } from "@/lib/moon";
+import { calendarDateToUTC, formatCalendarDayRange, formatDate, formatWeekday } from "@/lib/timezone";
 
 type DateCheckProps = {
   timeZone: string;
-};
-
-const STATUS_CONFIG: Record<Status, { label: string; dot: string; text: string; message: string }> = {
-  green: {
-    label: "Grün",
-    dot: "bg-green",
-    text: "text-green",
-    message: "Kein Vollmond und keine Gefahrenzone in diesem Zeitraum.",
-  },
-  yellow: {
-    label: "Gelb",
-    dot: "bg-amber",
-    text: "text-amber",
-    message: "Die Gefahrenzone (±2 Tage) berührt diesen Zeitraum.",
-  },
-  red: {
-    label: "Rot",
-    dot: "bg-danger",
-    text: "text-danger",
-    message: "Ein Vollmond-Tag liegt in diesem Zeitraum.",
-  },
+  startOffset: number;
+  endOffset: number;
 };
 
 /** Formatiert einen bereits zeitzonen-aufgelösten Kalendertag (YYYY-MM-DD) als "Wochentag, Datum". */
@@ -38,7 +17,7 @@ function formatFullMoonLabel(isoDate: string): string {
 }
 
 /** Reise-Ampel (SPEC.md §2.2b). Kein <form>-Element, Berechnung automatisch bei vollständiger Eingabe. */
-export function DateCheck({ timeZone }: DateCheckProps) {
+export function DateCheck({ timeZone, startOffset, endOffset }: DateCheckProps) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -46,8 +25,8 @@ export function DateCheck({ timeZone }: DateCheckProps) {
 
   const result = useMemo(() => {
     if (!startDate || !endDate || error) return null;
-    return checkDateRange(startDate, endDate, timeZone);
-  }, [startDate, endDate, timeZone, error]);
+    return checkDateRange(startDate, endDate, timeZone, startOffset, endOffset);
+  }, [startDate, endDate, timeZone, startOffset, endOffset, error]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -76,22 +55,32 @@ export function DateCheck({ timeZone }: DateCheckProps) {
 
       {error && <p className="text-sm text-foreground-muted">{error}</p>}
 
-      {result && (
+      {result && result.status === "free" && (
+        <div className="flex items-center gap-2 rounded-md border border-white/10 p-4">
+          <span className="h-2.5 w-2.5 rounded-full bg-green" />
+          <span className="text-sm text-green">Keine Überschneidung mit einer kritischen Phase.</span>
+        </div>
+      )}
+
+      {result && result.status === "critical" && (
         <div className="flex flex-col gap-2 rounded-md border border-white/10 p-4">
           <div className="flex items-center gap-2">
-            <span className={`h-2.5 w-2.5 rounded-full ${STATUS_CONFIG[result.status].dot}`} />
-            <span className={`text-sm font-medium ${STATUS_CONFIG[result.status].text}`}>
-              {STATUS_CONFIG[result.status].label}
+            <span className="h-2.5 w-2.5 rounded-full bg-danger" />
+            <span className="text-sm font-medium text-danger">
+              {result.overlapDays.length} von {result.totalTripDays} Reisetagen in der kritischen Phase
             </span>
           </div>
-          <p className="text-sm text-foreground-muted">{STATUS_CONFIG[result.status].message}</p>
-          {result.fullMoonDates.length > 0 && (
-            <ul className="flex flex-col gap-1 text-sm text-foreground">
-              {result.fullMoonDates.map((date) => (
-                <li key={date}>Vollmond am {formatFullMoonLabel(date)}</li>
-              ))}
-            </ul>
-          )}
+          <ul className="flex flex-col gap-1 text-sm text-foreground">
+            {result.fullMoonDates.map((fullMoonDay) => {
+              const phase = criticalPhaseDays(calendarDateToUTC(fullMoonDay), "UTC", startOffset, endOffset);
+              const overlapForThisMoon = phase.filter((day) => result.overlapDays.includes(day));
+              return (
+                <li key={fullMoonDay}>
+                  {formatCalendarDayRange(overlapForThisMoon)}, Vollmond am {formatFullMoonLabel(fullMoonDay)}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
     </div>

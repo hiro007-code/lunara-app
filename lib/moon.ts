@@ -1,12 +1,11 @@
 import { Body, Illumination, MoonPhase, NextMoonQuarter, SearchMoonPhase, SearchMoonQuarter } from "astronomy-engine";
-import { calendarDateToUTC, shiftCalendarDate, toCalendarDate } from "./timezone";
+import { calendarDateToUTC, calendarDayDiff, shiftCalendarDate, toCalendarDate } from "./timezone";
 
 // Wrapper um astronomy-engine für alle Mondberechnungen (SPEC.md §3).
 // Alle Zeitpunkte werden intern strikt in UTC gehalten.
 
 const FULL_MOON_LONGITUDE = 180;
 const SEARCH_WINDOW_DAYS = 40; // > 1 synodischer Monat (~29.53 Tage), sicherer Suchradius
-const DANGER_ZONE_RADIUS_DAYS = 2;
 
 /** Nächster Vollmond ab dem angegebenen Zeitpunkt (UTC). */
 export function nextFullMoon(from: Date): Date {
@@ -50,49 +49,66 @@ export function moonIllumination(at: Date): { fraction: number; waxing: boolean 
 }
 
 /**
- * Die 5 Kalendertage der Gefahrenzone (Vollmond-Tag ±2 Tage) in der angegebenen
- * Zeitzone, als ISO-Datumsstrings (YYYY-MM-DD), aufsteigend sortiert.
+ * Kalendertage der kritischen Phase in der angegebenen Zeitzone, als
+ * ISO-Datumsstrings (YYYY-MM-DD), aufsteigend sortiert. `startOffset`/`endOffset`
+ * sind ganze Tage relativ zum Vollmond-Kalendertag (negativ = vorher, 0 =
+ * Vollmond, positiv = nachher); `startOffset <= endOffset` wird vorausgesetzt
+ * und von der UI garantiert (SPEC.md §2.2).
  */
-export function dangerZoneDays(fullMoon: Date, timeZone: string): string[] {
+export function criticalPhaseDays(fullMoon: Date, timeZone: string, startOffset: number, endOffset: number): string[] {
   const centerDay = toCalendarDate(fullMoon, timeZone);
   const days: string[] = [];
-  for (let offset = -DANGER_ZONE_RADIUS_DAYS; offset <= DANGER_ZONE_RADIUS_DAYS; offset++) {
+  for (let offset = startOffset; offset <= endOffset; offset++) {
     days.push(shiftCalendarDate(centerDay, offset));
   }
   return days;
 }
 
+export type DateRangeCheck = {
+  status: "free" | "critical";
+  overlapDays: string[];
+  totalTripDays: number;
+  fullMoonDates: string[];
+};
+
 /**
- * Reise-Ampel (SPEC.md §2.2b): rot, wenn ein Vollmond-Kalendertag im Zeitraum liegt,
- * gelb, wenn nur die Gefahrenzone berührt wird, sonst grün.
+ * Datums-Check (SPEC.md §2.2b): "kritisch", wenn der Reisezeitraum eine
+ * kritische Phase berührt, sonst "frei". Kein Zwischenzustand – der
+ * Sicherheitsabstand ist Sache der konfigurierten Offsets selbst.
  * `start`/`end` sind Kalendertage (YYYY-MM-DD) in der angegebenen Zeitzone, inklusive.
  */
 export function checkDateRange(
   start: string,
   end: string,
   timeZone: string,
-): { status: "green" | "yellow" | "red"; fullMoonDates: string[] } {
-  const searchFrom = calendarDateToUTC(shiftCalendarDate(start, -(DANGER_ZONE_RADIUS_DAYS + 2)));
-  const searchTo = calendarDateToUTC(shiftCalendarDate(end, DANGER_ZONE_RADIUS_DAYS + 2));
+  startOffset: number,
+  endOffset: number,
+): DateRangeCheck {
+  const totalTripDays = calendarDayDiff(start, end) + 1;
+
+  // Suchfenster: ein Vollmond kann bis zu |startOffset|/|endOffset| Tage ausserhalb
+  // des Reisezeitraums liegen und dessen kritische Phase trotzdem berühren.
+  const searchFrom = calendarDateToUTC(shiftCalendarDate(start, -endOffset - 1));
+  const searchTo = calendarDateToUTC(shiftCalendarDate(end, -startOffset + 1));
 
   const candidates = fullMoonsInRange(searchFrom, searchTo);
 
-  const touchedDates = new Set<string>();
-  let hasFullMoonInRange = false;
+  const overlapDays = new Set<string>();
+  const fullMoonDates = new Set<string>();
 
   for (const fullMoon of candidates) {
-    const fullMoonDay = toCalendarDate(fullMoon, timeZone);
-    const zone = dangerZoneDays(fullMoon, timeZone);
-    const touchesRange = zone.some((day) => day >= start && day <= end);
-    if (!touchesRange) continue;
+    const phase = criticalPhaseDays(fullMoon, timeZone, startOffset, endOffset);
+    const overlap = phase.filter((day) => day >= start && day <= end);
+    if (overlap.length === 0) continue;
 
-    touchedDates.add(fullMoonDay);
-    if (fullMoonDay >= start && fullMoonDay <= end) {
-      hasFullMoonInRange = true;
-    }
+    overlap.forEach((day) => overlapDays.add(day));
+    fullMoonDates.add(toCalendarDate(fullMoon, timeZone));
   }
 
-  const status: "green" | "yellow" | "red" = hasFullMoonInRange ? "red" : touchedDates.size > 0 ? "yellow" : "green";
-
-  return { status, fullMoonDates: [...touchedDates].sort() };
+  return {
+    status: overlapDays.size > 0 ? "critical" : "free",
+    overlapDays: [...overlapDays].sort(),
+    totalTripDays,
+    fullMoonDates: [...fullMoonDates].sort(),
+  };
 }

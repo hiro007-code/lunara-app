@@ -63,6 +63,23 @@ export function formatShortDate(date: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("de-CH", { timeZone, day: "numeric", month: "short" }).format(date);
 }
 
+/**
+ * Formatiert eine Liste aufeinanderfolgender Kalendertage (YYYY-MM-DD, bereits
+ * zeitzonen-aufgelöst) als kurzer Bereich, z. B. "21.–28. Aug" bzw.
+ * "30. Aug–3. Sep" beim Überschreiten der Monatsgrenze; ein einzelner Tag als
+ * "28. Aug".
+ */
+export function formatCalendarDayRange(days: string[]): string {
+  const first = days[0];
+  const last = days[days.length - 1];
+  const lastLabel = formatShortDate(calendarDateToUTC(last), "UTC");
+  if (first === last) return lastLabel;
+  if (first.slice(0, 7) === last.slice(0, 7)) {
+    return `${Number(first.slice(8, 10))}.–${lastLabel}`;
+  }
+  return `${formatShortDate(calendarDateToUTC(first), "UTC")}–${lastLabel}`;
+}
+
 export function formatTime(date: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("de-CH", { timeZone, hour: "2-digit", minute: "2-digit" }).format(date);
 }

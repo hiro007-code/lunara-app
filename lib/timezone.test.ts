@@ -4,6 +4,7 @@ import {
   MAX_FAVORITES,
   addFavoriteTimezone,
   calendarDateToUTC,
+  formatCalendarDayRange,
   getTimezoneLabel,
   loadActiveTimezone,
   loadFavoriteTimezones,
@@ -36,6 +37,20 @@ describe("calendarDateToUTC / shiftCalendarDate", () => {
     expect(shiftCalendarDate("2025-01-31", 1)).toBe("2025-02-01");
     expect(shiftCalendarDate("2025-01-13", 2)).toBe("2025-01-15");
     expect(shiftCalendarDate("2025-01-13", -2)).toBe("2025-01-11");
+  });
+});
+
+describe("formatCalendarDayRange", () => {
+  it("formatiert einen einzelnen Tag ohne Bereich", () => {
+    expect(formatCalendarDayRange(["2025-01-13"])).toBe("13. Jan.");
+  });
+
+  it("formatiert einen Bereich innerhalb desselben Monats", () => {
+    expect(formatCalendarDayRange(["2025-01-06", "2025-01-07", "2025-01-13"])).toBe("6.–13. Jan.");
+  });
+
+  it("formatiert einen Bereich über eine Monatsgrenze hinweg mit Monat auf beiden Seiten", () => {
+    expect(formatCalendarDayRange(["2026-08-25", "2026-09-01"])).toBe("25. Aug.–1. Sept.");
   });
 });
 

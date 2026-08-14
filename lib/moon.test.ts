@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { checkDateRange, dangerZoneDays, fullMoonsInRange, moonIllumination, nextFullMoon, previousFullMoon } from "./moon";
+import { checkDateRange, criticalPhaseDays, fullMoonsInRange, moonIllumination, nextFullMoon, previousFullMoon } from "./moon";
 
 // Bekannte Referenzwerte (UTC), unabhängig verifiziert via astronomy-engine
 // und öffentlichen Almanach-Daten:
@@ -85,66 +85,123 @@ describe("moonIllumination", () => {
   });
 });
 
-describe("dangerZoneDays", () => {
-  it("liefert exakt 5 aufeinanderfolgende Kalendertage um den Vollmond", () => {
-    const days = dangerZoneDays(FULL_MOON_JAN_2025, "Europe/Zurich");
-    expect(days).toEqual(["2025-01-11", "2025-01-12", "2025-01-13", "2025-01-14", "2025-01-15"]);
+describe("criticalPhaseDays", () => {
+  it("Default -7..0: 8 Kalendertage bis einschliesslich des Vollmond-Tags", () => {
+    const days = criticalPhaseDays(FULL_MOON_JAN_2025, "Europe/Zurich", -7, 0);
+    expect(days).toEqual([
+      "2025-01-06",
+      "2025-01-07",
+      "2025-01-08",
+      "2025-01-09",
+      "2025-01-10",
+      "2025-01-11",
+      "2025-01-12",
+      "2025-01-13",
+    ]);
+  });
+
+  it("0..0: nur der Vollmond-Tag selbst", () => {
+    expect(criticalPhaseDays(FULL_MOON_JAN_2025, "Europe/Zurich", 0, 0)).toEqual(["2025-01-13"]);
+  });
+
+  it("-7..+1: schliesst einen Tag nach dem Vollmond mit ein", () => {
+    const days = criticalPhaseDays(FULL_MOON_JAN_2025, "Europe/Zurich", -7, 1);
+    expect(days[0]).toBe("2025-01-06");
+    expect(days[days.length - 1]).toBe("2025-01-14");
+    expect(days).toHaveLength(9);
+  });
+
+  it("überspannt eine Monatsgrenze", () => {
+    const fullMoonNearMonthEnd = new Date("2026-09-01T12:00:00Z"); // Zurich-Kalendertag: 2026-09-01
+    const days = criticalPhaseDays(fullMoonNearMonthEnd, "Europe/Zurich", -7, 0);
+    expect(days).toEqual([
+      "2026-08-25",
+      "2026-08-26",
+      "2026-08-27",
+      "2026-08-28",
+      "2026-08-29",
+      "2026-08-30",
+      "2026-08-31",
+      "2026-09-01",
+    ]);
+  });
+
+  it("überspannt eine Jahresgrenze", () => {
+    const fullMoonNearYearEnd = new Date("2026-01-03T10:03:26.043Z"); // Zurich-Kalendertag: 2026-01-03
+    const days = criticalPhaseDays(fullMoonNearYearEnd, "Europe/Zurich", -7, 0);
+    expect(days).toEqual([
+      "2025-12-27",
+      "2025-12-28",
+      "2025-12-29",
+      "2025-12-30",
+      "2025-12-31",
+      "2026-01-01",
+      "2026-01-02",
+      "2026-01-03",
+    ]);
   });
 
   it("ordnet den Vollmond nahe Mitternacht je nach Zeitzone einem anderen Kalendertag zu", () => {
-    const tokyoZone = dangerZoneDays(FULL_MOON_NEAR_MIDNIGHT, "Asia/Tokyo");
-    const laZone = dangerZoneDays(FULL_MOON_NEAR_MIDNIGHT, "America/Los_Angeles");
-
-    // Vollmond-Tag ist jeweils der mittlere Eintrag der 5-Tage-Zone.
-    expect(tokyoZone[2]).toBe("2021-09-21");
-    expect(laZone[2]).toBe("2021-09-20");
-    expect(tokyoZone[2]).not.toBe(laZone[2]);
+    const tokyoPhase = criticalPhaseDays(FULL_MOON_NEAR_MIDNIGHT, "Asia/Tokyo", 0, 0);
+    const laPhase = criticalPhaseDays(FULL_MOON_NEAR_MIDNIGHT, "America/Los_Angeles", 0, 0);
+    expect(tokyoPhase).toEqual(["2021-09-21"]);
+    expect(laPhase).toEqual(["2021-09-20"]);
   });
 });
 
 describe("checkDateRange", () => {
   const timeZone = "Europe/Zurich";
-  // Vollmond-Kalendertag in Europe/Zurich: 2025-01-13, Gefahrenzone: 01-11 .. 01-15.
+  // Vollmond-Kalendertag in Europe/Zurich: 2025-01-13, kritische Phase (Default -7..0): 01-06 .. 01-13.
 
-  it("grün: Zeitraum ausserhalb von Vollmond und Gefahrenzone", () => {
-    const result = checkDateRange("2025-01-01", "2025-01-05", timeZone);
-    expect(result).toEqual({ status: "green", fullMoonDates: [] });
+  it("frei: Zeitraum ausserhalb der kritischen Phase, keine Überschneidung", () => {
+    const result = checkDateRange("2025-01-01", "2025-01-05", timeZone, -7, 0);
+    expect(result).toEqual({ status: "free", overlapDays: [], totalTripDays: 5, fullMoonDates: [] });
   });
 
-  it("gelb: Gefahrenzone wird berührt, aber kein Vollmond-Tag liegt im Zeitraum", () => {
-    const result = checkDateRange("2025-01-14", "2025-01-20", timeZone);
-    expect(result).toEqual({ status: "yellow", fullMoonDates: ["2025-01-13"] });
+  it("kritisch: Teilüberschneidung – Ausmass zählt nur die tatsächlich betroffenen Tage", () => {
+    const result = checkDateRange("2025-01-10", "2025-01-16", timeZone, -7, 0);
+    expect(result).toEqual({
+      status: "critical",
+      overlapDays: ["2025-01-10", "2025-01-11", "2025-01-12", "2025-01-13"],
+      totalTripDays: 7,
+      fullMoonDates: ["2025-01-13"],
+    });
   });
 
-  it("rot: der Vollmond-Tag selbst liegt im Zeitraum", () => {
-    const result = checkDateRange("2025-01-12", "2025-01-13", timeZone);
-    expect(result).toEqual({ status: "red", fullMoonDates: ["2025-01-13"] });
+  it("kritisch: Reisezeitraum liegt komplett innerhalb der kritischen Phase", () => {
+    const result = checkDateRange("2025-01-08", "2025-01-10", timeZone, -7, 0);
+    expect(result).toEqual({
+      status: "critical",
+      overlapDays: ["2025-01-08", "2025-01-09", "2025-01-10"],
+      totalTripDays: 3,
+      fullMoonDates: ["2025-01-13"],
+    });
   });
 
-  it("Grenzfall: Zeitraum endet genau am Rand der Gefahrenzone -> gelb", () => {
-    const result = checkDateRange("2025-01-08", "2025-01-11", timeZone);
-    expect(result).toEqual({ status: "yellow", fullMoonDates: ["2025-01-13"] });
+  it("frei: angrenzender Zeitraum endet genau 1 Tag vor Beginn der kritischen Phase", () => {
+    const result = checkDateRange("2025-01-03", "2025-01-05", timeZone, -7, 0);
+    expect(result).toEqual({ status: "free", overlapDays: [], totalTripDays: 3, fullMoonDates: [] });
   });
 
-  it("Grenzfall: Zeitraum endet einen Tag vor der Gefahrenzone -> grün", () => {
-    const result = checkDateRange("2025-01-08", "2025-01-10", timeZone);
-    expect(result).toEqual({ status: "green", fullMoonDates: [] });
+  it("erfasst beide kritischen Phasen, wenn der Zeitraum zwei Vollmonde überspannt", () => {
+    // Vollmond-Kalendertag Februar in Europe/Zurich: 2025-02-12, Phase: 02-05 .. 02-12.
+    const result = checkDateRange("2025-01-12", "2025-02-06", timeZone, -7, 0);
+    expect(result).toEqual({
+      status: "critical",
+      overlapDays: ["2025-01-12", "2025-01-13", "2025-02-05", "2025-02-06"],
+      totalTripDays: 26,
+      fullMoonDates: ["2025-01-13", "2025-02-12"],
+    });
   });
 
-  it("Jahreswechsel: gelb, wenn nur die Gefahrenzone berührt wird (Silvester-Reise)", () => {
-    // Vollmond-Kalendertag in Europe/Zurich: 2026-01-03 (Zone: 2026-01-01 .. 2026-01-05).
-    const result = checkDateRange("2025-12-30", "2026-01-02", timeZone);
-    expect(result).toEqual({ status: "yellow", fullMoonDates: ["2026-01-03"] });
-  });
-
-  it("Jahreswechsel: rot, wenn der Vollmond-Tag selbst im Zeitraum liegt", () => {
-    const result = checkDateRange("2025-12-30", "2026-01-03", timeZone);
-    expect(result).toEqual({ status: "red", fullMoonDates: ["2026-01-03"] });
-  });
-
-  it("Jahreswechsel: grün, wenn der Zeitraum vollständig vor der Gefahrenzone liegt", () => {
-    const result = checkDateRange("2025-12-20", "2025-12-25", timeZone);
-    expect(result).toEqual({ status: "green", fullMoonDates: [] });
+  it("berücksichtigt konfigurierte Offsets abseits des Defaults", () => {
+    const result = checkDateRange("2025-01-13", "2025-01-13", timeZone, 0, 0);
+    expect(result).toEqual({
+      status: "critical",
+      overlapDays: ["2025-01-13"],
+      totalTripDays: 1,
+      fullMoonDates: ["2025-01-13"],
+    });
   });
 });
 
@@ -187,16 +244,3 @@ describe("Randfall: Vollmond-Umschlag (Systemzeit manipuliert)", () => {
   });
 });
 
-describe("Randfall: Gefahrenzone über eine Monatsgrenze hinweg", () => {
-  it("liefert 5 Tage, die zwei Kalendermonate überspannen", () => {
-    const fullMoonNearMonthEnd = new Date("2026-09-01T12:00:00Z");
-    const zone = dangerZoneDays(fullMoonNearMonthEnd, "Europe/Zurich");
-    expect(zone).toEqual(["2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03"]);
-  });
-
-  it("checkDateRange erkennt eine Zonen-Berührung über die Monatsgrenze hinweg (echter Vollmond 2026-02-01)", () => {
-    // Vollmond-Kalendertag in Europe/Zurich: 2026-02-01 (Zone: 2026-01-30 .. 2026-02-03).
-    const result = checkDateRange("2026-01-28", "2026-01-30", "Europe/Zurich");
-    expect(result).toEqual({ status: "yellow", fullMoonDates: ["2026-02-01"] });
-  });
-});

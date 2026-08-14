@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AdminTokenCapture } from "@/components/AdminTokenCapture";
 import { BottomBar } from "@/components/BottomBar";
+import { CriticalPhaseProvider } from "@/components/CriticalPhaseProvider";
 import { OnboardingGate } from "@/components/OnboardingGate";
 import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 import { TimezoneLabel } from "@/components/TimezoneLabel";
@@ -47,15 +48,17 @@ export default function RootLayout({
         {/* TimezoneProvider umschliesst auch das Onboarding: Block 3 braucht die
             aktive Zeitzone bereits für die Push-Subscription (SPEC.md §2.5). */}
         <TimezoneProvider>
-          <OnboardingGate>
-            <div className="mx-auto flex min-h-screen w-full max-w-md flex-col">
-              <div className="flex justify-end px-6 pt-6">
-                <TimezoneLabel />
+          <CriticalPhaseProvider>
+            <OnboardingGate>
+              <div className="mx-auto flex min-h-screen w-full max-w-md flex-col">
+                <div className="flex justify-end px-6 pt-6">
+                  <TimezoneLabel />
+                </div>
+                <main className="flex flex-1 flex-col px-6 pb-16">{children}</main>
+                <BottomBar />
               </div>
-              <main className="flex flex-1 flex-col px-6 pb-16">{children}</main>
-              <BottomBar />
-            </div>
-          </OnboardingGate>
+            </OnboardingGate>
+          </CriticalPhaseProvider>
         </TimezoneProvider>
       </body>
     </html>
